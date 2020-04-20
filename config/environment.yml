@@ -107,6 +107,7 @@ dependencies:
   - nbformat=5.0.4=py_0
   - ncurses=6.2=h0a44026_0
   - networkx=2.4=py_0
+  - nodejs=10.13.0=h0a44026_0
   - notebook=6.0.3=py37_0
   - numpy=1.18.1=py37h0c13f30_0
   - numpy-base=1.18.1=py37ha711998_1
