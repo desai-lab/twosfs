@@ -76,7 +76,7 @@ dependencies:
   - jsonschema=3.2.0=py37_0
   - jupyter_client=6.1.2=py_0
   - jupyter_core=4.6.3=py37_0
-  - jupyterlab=1.2.6=pyhf63ae98_0
+  - jupyterlab=2.1.0=py_0
   - jupyterlab_server=1.1.0=py_0
   - jupytext=1.4.2=pyh9f0ad1d_0
   - kiwisolver=1.1.0=py37h0a44026_0
