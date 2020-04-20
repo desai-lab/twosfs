@@ -256,3 +256,23 @@ for a in range(1, 6):
         ax.plot(np.arange(1, params['length']),
                 twosfs[1:, a, b] - onesfs[a] * onesfs[b])
         ax.set_title(f'$a={a}, b={b}$')
+
+# Repeat with Kingman
+
+params = {
+    'sample_size': 10,
+    'length': 100,
+    'recombination_rate': 0.1,
+    'random_seed': 100,
+    'num_replicates': 10000,
+}
+sims = msprime.simulate(**params)
+onesfs, twosfs = get_sfs(sims, params['sample_size'], params['length'])
+
+plt.figure(figsize=(10, 10))
+for a in range(1, 6):
+    for b in range(1, 6):
+        ax = plt.subplot(5, 5, a + 5 * (b - 1))
+        ax.plot(np.arange(1, params['length']),
+                twosfs[1:, a, b] - onesfs[a] * onesfs[b])
+        ax.set_title(f'$a={a}, b={b}$')
