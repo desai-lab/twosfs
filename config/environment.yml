@@ -4,14 +4,12 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - snakemake
-  - msprime
-  - numpy
-  - matplotlib
-  - tskit
-  - scipy
-  - jupytext
+  - python=3.7
+  - snakemake=5.14
+  - msprime=0.7.4
+  - numpy=1.18
+  - matplotlib=3.1
+  - scipy=1.4
+  - jupytext=1.4
   - jupyterlab=2.1
-  - nodejs
-prefix: /Users/danielrice/miniconda3/envs/twosfs
-
+  - nodejs=10.13
