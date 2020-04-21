@@ -1,0 +1,44 @@
+import numpy as np
+import msprime
+from src.twosfs import sims2sfs
+
+rule simulations:
+    input:
+        'simulations/msprime/test.npz'
+    output:
+        'simulations.tgz'
+    shell:
+        'tar -czf {output} {input}'
+
+rule msprime:
+    output:
+        temp('simulations/.tmp/{prefix}.{rep}.npz')
+    run:
+        parameters = {
+            'sample_size': 4,
+            'length': 100,
+            'recombination_rate': 0.1,
+            'random_seed': 1 + int(wildcards.rep),
+            'num_replicates': 100,
+        }
+        sims = msprime.simulate(**parameters)
+        onesfs, twosfs = sims2sfs(sims,
+                                  parameters['sample_size'],
+                                  parameters['length'])
+        np.savez(output[0], onesfs=onesfs, twosfs=twosfs)
+
+rule average_runs:
+    output:
+        'simulations/msprime/{prefix}.npz'
+    input:
+        expand('simulations/.tmp/{prefix}.{rep}.npz', rep=range(10), allow_missing=True)
+    run:
+        onesfs = 0.0
+        twosfs = 0.0
+        for infn in input:
+            data = np.load(infn)
+            onesfs += data['onesfs']
+            twosfs += data['twosfs']
+        onesfs /= len(input)
+        twosfs /= len(input)
+        np.savez(output[0], onesfs=onesfs, twosfs=twosfs)
