@@ -13,7 +13,7 @@ def parameter_map(prefix):
     else:
         raise KeyError('Simulation prefix not found')
 
-ALPHAS = [f'{a:.2f}' for a in np.arange(1.5, 2.0, 0.1)]
+ALPHAS = [f'{a:.2f}' for a in np.arange(1.5, 2.0, 0.05)]
 
 rule simulations:
     group: 'cleanup'
