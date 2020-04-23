@@ -1,0 +1,15 @@
+__default__:
+    time: 01:00:00
+    mem: 1G
+    ncores: 1
+    name: "{rule}.{wildcards}"
+    out: "log/{rule}.{wildcards}-%j.out"
+    err: "log/{rule}.{wildcards}-%j.err"
+
+cleanup:
+    name: cleanup
+    out: "log/cleanup-%j.out"
+    err: "log/cleanup-%j.err"
+
+test:
+    time: 00:02:00

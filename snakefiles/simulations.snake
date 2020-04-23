@@ -16,6 +16,7 @@ def parameter_map(prefix):
 ALPHAS = [f'{a:.2f}' for a in np.arange(1.5, 2.0, 0.1)]
 
 rule simulations:
+    group: 'cleanup'
     input:
         'simulations/msprime/kingman.npz',
         expand('simulations/msprime/xibeta-alpha={alpha}.npz', alpha=ALPHAS)
@@ -43,6 +44,7 @@ rule msprime:
         np.savez_compressed(output[0], onesfs=onesfs, twosfs=twosfs)
 
 rule average_runs:
+    group: 'cleanup'
     output:
         'simulations/msprime/{prefix}.npz'
     input:
