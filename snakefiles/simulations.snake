@@ -13,10 +13,11 @@ rule simulations:
 
 def parameter_map(prefix):
     if prefix == 'test':
-        return {'sample_size': 4, num_replicates: 100}
+        return {'sample_size': 4, 'num_replicates': 100}
     elif prefix == 'kingman':
         return {}
     else:
+        # FIXME: should probably throw an error
         return {}
 
 rule msprime:
