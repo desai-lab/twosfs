@@ -30,7 +30,7 @@ rule msprime:
             'random_seed': 1 + int(wildcards.rep),
             'num_replicates': 10000,
         }
-        parameters = dict(default_parameter, **parameter_map(wildcards.prefix))
+        parameters = dict(default_parameters, **parameter_map(wildcards.prefix))
         sims = msprime.simulate(**parameters)
         onesfs, twosfs = sims2sfs(sims,
                                   parameters['sample_size'],
