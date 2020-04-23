@@ -3,6 +3,7 @@ import msprime
 from src.twosfs import sims2sfs
 
 rule simulations:
+    group: "zip"
     input:
         'simulations/msprime/kingman.npz'
     output:
@@ -38,6 +39,7 @@ rule msprime:
         np.savez_compressed(output[0], onesfs=onesfs, twosfs=twosfs)
 
 rule average_runs:
+    group: "zip"
     output:
         'simulations/msprime/{prefix}.npz'
     input:
