@@ -4,23 +4,33 @@ from src.twosfs import sims2sfs
 
 rule simulations:
     input:
-        'simulations/msprime/test.npz'
+        'simulations/msprime/test.npz',
+        'simulations/msprime/kingman.npz'
     output:
         'simulations.tgz'
     shell:
         'tar -czf {output} {input}'
 
+def parameter_map(prefix):
+    if prefix == 'test':
+        return {'sample_size': 4, num_replicates: 100}
+    elif prefix == 'kingman':
+        return {}
+    else:
+        return {}
+
 rule msprime:
     output:
         temp('simulations/.tmp/{prefix}.{rep}.npz')
     run:
-        parameters = {
-            'sample_size': 4,
+        default_parameters = {
+            'sample_size': 100,
             'length': 100,
             'recombination_rate': 0.1,
             'random_seed': 1 + int(wildcards.rep),
-            'num_replicates': 100,
+            'num_replicates': 10000,
         }
+        parameters = dict(default_parameter, **parameter_map(wildcards.prefix))
         sims = msprime.simulate(**parameters)
         onesfs, twosfs = sims2sfs(sims,
                                   parameters['sample_size'],
