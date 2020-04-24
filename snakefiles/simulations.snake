@@ -1,6 +1,8 @@
 import numpy as np
+
 import msprime
 from src.twosfs import sims2sfs
+
 
 def parameter_map(prefix):
     """Convert a file prefix to a set of msprime parameters."""
@@ -23,13 +25,15 @@ def parameter_map(prefix):
 
     return dict(default_parameters, **parameters)
 
+
 ALPHAS = [f'{a:.2f}' for a in np.arange(1.5, 2.0, 0.05)]
 
 rule simulations:
     group: 'cleanup'
     input:
         'simulations/msprime/kingman.npz',
-        expand('simulations/msprime/xibeta-alpha={alpha}.npz', alpha=ALPHAS)
+        expand('simulations/msprime/xibeta-alpha={alpha}.npz', alpha=ALPHAS),
+        expand('simulations/fastNeutrino/xibeta-alpha={alpha}.FixedTimes.txt', alpha=ALPHAS)
     output:
         'simulations.tgz'
     shell:
@@ -73,7 +77,7 @@ rule fastNeutrino:
     log:
         "log/fastNeutrino.{prefix}.{model}.log"
     shell:
-        "fastNeutrino --maxB 10 --maxRandomRestarts 1 "
+        "fastNeutrino --foldSpectrum --maxB 10 --maxRandomRestarts 1 "
         "--modelFile {input.modelfile} "
         "--inferredModelOutputFile {output} "
         "< {input.datafile} "
@@ -87,6 +91,7 @@ rule fastNeutrinoInput:
     run:
         n = parameter_map(wildcards.prefix)['sample_size']
         sfs = np.load(input.simulation_file)['onesfs']
+        sfs[0] = 100
         with open(output.sfs_file, 'w') as outfile:
-            outfile.write(f'{n} 1\n')
+            outfile.write(f'{n}\t1\n')
             outfile.write('\n'.join(map(str, sfs)) + '\n')
