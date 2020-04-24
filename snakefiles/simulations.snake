@@ -3,15 +3,25 @@ import msprime
 from src.twosfs import sims2sfs
 
 def parameter_map(prefix):
+    """Convert a file prefix to a set of msprime parameters."""
+    default_parameters = {
+        'sample_size': 100,
+        'length': 100,
+        'recombination_rate': 0.1,
+        'num_replicates': 10000,
+    }
+
     if prefix == 'test':
-        return {'sample_size': 4, 'num_replicates': 100}
+        parameters = {'sample_size': 11, 'num_replicates': 100}
     elif prefix == 'kingman':
-        return {}
+        parameters = {}
     elif prefix.startswith('xibeta'):
         alpha = float(prefix.split('alpha=')[1])
-        return {'model': msprime.BetaCoalescent(alpha=alpha)}
+        parameters = {'model': msprime.BetaCoalescent(alpha=alpha)}
     else:
         raise KeyError('Simulation prefix not found')
+
+    return dict(default_parameters, **parameters)
 
 ALPHAS = [f'{a:.2f}' for a in np.arange(1.5, 2.0, 0.05)]
 
@@ -29,14 +39,8 @@ rule msprime:
     output:
         temp('simulations/.tmp/{prefix}.rep{rep}.npz')
     run:
-        default_parameters = {
-            'sample_size': 100,
-            'length': 100,
-            'recombination_rate': 0.1,
-            'random_seed': 1 + int(wildcards.rep),
-            'num_replicates': 10000,
-        }
-        parameters = dict(default_parameters, **parameter_map(wildcards.prefix))
+        parameters = parameter_map(wildcards.prefix)
+        parameters['random_seed'] = 1 + int(wildcards.rep)
         sims = msprime.simulate(**parameters)
         onesfs, twosfs = sims2sfs(sims,
                                   parameters['sample_size'],
