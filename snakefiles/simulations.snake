@@ -63,3 +63,30 @@ rule average_runs:
         onesfs /= len(input)
         twosfs /= len(input)
         np.savez_compressed(output[0], onesfs=onesfs, twosfs=twosfs)
+
+rule fastNeutrino:
+    input:
+        datafile = "simulations/.tmp/{prefix}.sfs.txt",
+        modelfile = "src/models/{model}.txt"
+    output:
+        "simulations/fastNeutrino/{prefix}.{model}.txt"
+    log:
+        "log/fastNeutrino.{prefix}.{model}.log"
+    shell:
+        "fastNeutrino --maxB 10 --maxRandomRestarts 1 "
+        "--modelFile {input.modelfile} "
+        "--inferredModelOutputFile {output} "
+        "< {input.datafile} "
+        "> {log}"
+
+rule fastNeutrinoInput:
+    input:
+        simulation_file = 'simulations/msprime/{prefix}.npz'
+    output:
+        sfs_file = temp("simulations/.tmp/{prefix}.sfs.txt")
+    run:
+        n = parameter_map(wildcards.prefix)['sample_size']
+        sfs = np.load(input.simulation_file)['onesfs']
+        with open(output.sfs_file, 'w') as outfile:
+            outfile.write(f'{n} 1\n')
+            outfile.write('\n'.join(map(str, sfs)) + '\n')
