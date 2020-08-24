@@ -30,7 +30,9 @@ def sims2sfs(sims, sample_size, length):
     twosfs = np.zeros((length, sample_size + 1, sample_size + 1))
     n_sims = 0
     for tseq in sims:
-        afs = tseq.allele_frequency_spectrum(mode='branch', windows=windows)
+        afs = tseq.allele_frequency_spectrum(mode='branch',
+                                             windows=windows,
+                                             polarised=True)
         onesfs += np.mean(afs, axis=0)
         twosfs += afs[0, :, None] * afs[:, None, :]
         n_sims += 1
