@@ -2,6 +2,7 @@ import numpy as np
 
 import msprime
 from src.twosfs import sims2sfs
+from src.simulations import beta_timescale
 
 
 def parameter_map(prefix):
@@ -19,7 +20,10 @@ def parameter_map(prefix):
         parameters = {}
     elif prefix.startswith('xibeta'):
         alpha = float(prefix.split('alpha=')[1])
-        parameters = {'model': msprime.BetaCoalescent(alpha=alpha)}
+        # Rescale recombination to keep r*T_2 constant
+        r = default_parameters['recombination_rate'] / beta_timescale(alpha)
+        parameters = {'model': msprime.BetaCoalescent(alpha=alpha),
+                      'recombination_rate':r}
     else:
         raise KeyError('Simulation prefix not found')
 
