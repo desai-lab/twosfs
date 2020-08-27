@@ -4,12 +4,14 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - python=3.7
-  - snakemake=5.14
-  - msprime=0.7.4
+  - pip
+  - python=3.8
+  - snakemake=5.22
   - numpy=1.18
-  - matplotlib=3.1
-  - scipy=1.4
-  - jupytext=1.4
+  - matplotlib=3.3
+  - scipy
+  - jupytext=1.5.0
   - jupyterlab=2.1
   - nodejs=10.13
+  - pip:
+      - git+https://github.com/JereKoskela/msprime@a337b63f5331a905974239869345f1d7e09cf14f#egg=msprime
