@@ -37,7 +37,6 @@ rule simulations:
     input:
         'simulations/msprime/kingman.npz',
         expand(['simulations/msprime/xibeta-alpha={alpha}.npz',
-                'simulations/fastNeutrino/xibeta-alpha={alpha}.FixedTimes.txt',
                 'simulations/fastNeutrino/xibeta-alpha={alpha}.3Epoch.txt'],
                 alpha=ALPHAS)
     output:
