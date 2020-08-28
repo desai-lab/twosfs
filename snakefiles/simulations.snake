@@ -3,6 +3,7 @@ import numpy as np
 import msprime
 from twosfs.twosfs import sims2sfs
 from twosfs.simulations import beta_timescale
+from twosfs.demographicmodel import scaled_demographic_events
 
 
 def parameter_map(prefix):
@@ -37,12 +38,15 @@ rule simulations:
     input:
         'simulations/msprime/kingman.npz',
         expand(['simulations/msprime/xibeta-alpha={alpha}.npz',
-                'simulations/fastNeutrino/xibeta-alpha={alpha}.3Epoch.txt'],
+                'simulations/fastNeutrino/xibeta-alpha={alpha}.3Epoch.txt',
+                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.3Epoch.npz'],
                 alpha=ALPHAS)
     output:
         'simulations.tgz'
     shell:
         'tar -czf {output} {input}'
+
+ruleorder: msprime_from_fastNeutrino > msprime
 
 rule msprime:
     output:
@@ -55,6 +59,23 @@ rule msprime:
                                   parameters['sample_size'],
                                   parameters['length'])
         np.savez_compressed(output[0], onesfs=onesfs, twosfs=twosfs)
+
+rule msprime_from_fastNeutrino:
+    input:
+        "simulations/fastNeutrino/{prefix}.txt"
+    output:
+        temp('simulations/.tmp/fastNeutrino.{prefix}.rep{rep}.npz')
+    run:
+        # Use Kingman parameters, but add demographic events properly scaled
+        parameters = parameter_map('kingman')
+        parameters['demographic_events'] = scaled_demographic_events(input[0])
+        parameters['random_seed'] = 1 + int(wildcards.rep)
+        sims = msprime.simulate(**parameters)
+        onesfs, twosfs = sims2sfs(sims,
+                                  parameters['sample_size'],
+                                  parameters['length'])
+        np.savez_compressed(output[0], onesfs=onesfs, twosfs=twosfs)
+
 
 rule average_runs:
     group: 'cleanup'

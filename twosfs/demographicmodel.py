@@ -3,7 +3,8 @@ import sys
 
 import numpy as np
 
-from msprime import PopulationParametersChange
+from msprime import PopulationParametersChange, simulate
+from twosfs.twosfs import sims2pi
 
 
 class DemographicModel:
@@ -25,7 +26,8 @@ class DemographicModel:
     def read_fastNeutrino_output(self, model_fn):
         """Read epochs from a fastNeutrino fitted parameters output file."""
         with open(model_fn) as modelfile:
-            header = modelfile.readline()
+            # Discard the header
+            _ = modelfile.readline()
             n_anc = float(modelfile.readline())
             # First epoch implicitly starts at t=0
             start_time = 0.0
@@ -63,7 +65,6 @@ class DemographicModel:
 
     def population_size(self, T):
         """Return the population size at time T."""
-
         if self.num_epochs == 0:
             # No epochs have been added.
             return np.empty_like(T)
@@ -100,6 +101,19 @@ class DemographicModel:
             events.append(
                 PopulationParametersChange(t, initial_size=s, growth_rate=g))
         return events
+
+
+def scaled_demographic_events(filename, num_replicates=100000):
+    """Get msprime demographic events, scaled so that T_2 = 4."""
+    dm = DemographicModel(filename)
+    demographic_events = dm.get_demographic_events()
+    sims = simulate(sample_size=2,
+                    random_seed=1,
+                    num_replicates=num_replicates,
+                    demographic_events=demographic_events)
+    T2 = sims2pi(sims, num_replicates)
+    dm.rescale(T2 / 4)
+    return dm.get_demographic_events()
 
 
 def exponential_growth(n0, t0, r, T):

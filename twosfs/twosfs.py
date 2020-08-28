@@ -39,6 +39,13 @@ def sims2sfs(sims, sample_size, length):
     return onesfs / n_sims, twosfs / n_sims
 
 
+def sims2pi(sims, num_replicates):
+    """Compute pairwise diversity (T_2) for a generator of tree sequences."""
+    pi = sum(tseq.diversity(mode='branch') for tseq in sims)
+    pi /= num_replicates
+    return (pi)
+
+
 def sfs2pi(sfs):
     """Compute the average pairwise diversity from an SFS."""
     n = len(sfs) - 1
