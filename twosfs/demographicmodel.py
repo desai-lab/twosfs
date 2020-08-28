@@ -3,6 +3,8 @@ import sys
 
 import numpy as np
 
+from msprime import PopulationParametersChange
+
 
 class DemographicModel:
     """Stores piecewise-exponential demographic models."""
@@ -32,7 +34,7 @@ class DemographicModel:
                 if line.startswith('c'):
                     # Constant-N epoch
                     n, t = map(float, line.split()[-2:])
-                    g = 0.0
+                    g = None
                 elif line.startswith('e'):
                     # Exponential-growth epoch
                     n, t, g = map(float, line.split()[-3:])
@@ -46,9 +48,9 @@ class DemographicModel:
                 # Set next epoch start time to current epoch end time
                 start_time = t
         # Add ancestral population size as the last epoch
-        self.add_epoch(start_time, n_anc, 0.0)
+        self.add_epoch(start_time, n_anc, None)
 
-    def add_epoch(self, time, size, rate):
+    def add_epoch(self, time, size, rate=None):
         """Add new epoch to the demographic model."""
         if self.num_epochs == 0 or time >= self.times[-1]:
             self.num_epochs += 1
@@ -80,17 +82,29 @@ class DemographicModel:
             scale = self.sizes[0]
         self.sizes = [s / scale for s in self.sizes]
         self.times = [t / scale for t in self.times]
-        self.rates = [r * scale for r in self.rates]
+        self.rates = [None if r is None else r * scale for r in self.rates]
         return scale
 
+    # TODO: Remove
     def print_msprime_flags(self):
-        """Print model params as flags simulate_joint_sfs.py"""
+        """DEPRECATED Print model params as flags simulate_joint_sfs.py."""
         # WARNING: only works for constant-time epochs (for now)
         flags = '-T ' + ' '.join(map(str, self.times))
         flags += ' -S ' + ' '.join(map(str, self.sizes))
         sys.stdout.write(flags)
 
+    def get_demographic_events(self):
+        """Get a list of demographic_events for msprime simulations."""
+        events = []
+        for t, s, g in zip(self.times, self.sizes, self.rates):
+            events.append(
+                PopulationParametersChange(t, initial_size=s, growth_rate=g))
+        return events
+
 
 def exponential_growth(n0, t0, r, T):
-    """Calculate N(t) for exponentially-growing population back in time"""
-    return n0 * np.exp(-(T - t0) * r)
+    """Calculate N(t) for exponentially-growing population back in time."""
+    if r is None:
+        return n0
+    else:
+        return n0 * np.exp(-(T - t0) * r)
