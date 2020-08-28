@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.4.2
+#       jupytext_version: 1.5.0
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -17,11 +17,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import msprime
-from src.twosfs import sims2sfs
+from twosfs.twosfs import sims2sfs
 
 # ## Import test simulated data
 
-data = np.load('simulations/msprime/test.npz')
+data = np.load('../simulations/msprime/test.npz')
 onesfs_import = data['onesfs']
 twosfs_import = data['twosfs']
 
@@ -42,7 +42,7 @@ onesfs_local = 0.0
 twosfs_local = 0.0
 for rep in range(10):
     parameters = {
-        'sample_size': 4,
+        'sample_size': 11,
         'length': 100,
         'recombination_rate': 0.1,
         'random_seed': 1 + int(rep),

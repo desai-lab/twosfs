@@ -1,8 +1,8 @@
 import numpy as np
 
 import msprime
-from src.twosfs import sims2sfs
-from src.simulations import beta_timescale
+from twosfs.twosfs import sims2sfs
+from twosfs.simulations import beta_timescale
 
 
 def parameter_map(prefix):
@@ -76,7 +76,7 @@ rule average_runs:
 rule fastNeutrino:
     input:
         datafile = "simulations/.tmp/{prefix}.sfs.txt",
-        modelfile = "src/models/{model}.txt"
+        modelfile = "twosfs/models/{model}.txt"
     output:
         "simulations/fastNeutrino/{prefix}.{model}.txt"
     log:

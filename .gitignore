@@ -2,3 +2,4 @@
 .snakemake/
 simulations/
 log/
+twosfs.egg-info/
