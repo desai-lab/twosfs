@@ -32,13 +32,39 @@ def sims2pi(sims, num_replicates):
     return (pi)
 
 
-alpha = 1.80
-modelfn = f"../simulations/fastNeutrino/xibeta-alpha={alpha:.2f}.3Epoch.txt"
-dm = DemographicModel(modelfn)
-print(dm.__dict__)
+alpha = 1.55
+for model in ['3Epoch', 'FixedTimes', 'FixedTimesDense']:
+    modelfn = f"../simulations/fastNeutrino/xibeta-alpha={alpha:.2f}.{model}.txt"
+    dm = DemographicModel(modelfn)
+    t = np.logspace(np.log10(dm.times[1]/2), np.log10(2*dm.times[-1]), 100)
+    plt.loglog(t, dm.population_size(t))
 
-t = np.logspace(0, np.log10(10 * dm.times[-1]), 100)
-plt.semilogx(t, dm.population_size(t))
+model = '3Epoch'
+alphas = np.arange(1.5, 2.0, 0.05)[:9]
+for alpha in alphas:
+    modelfn = f"../simulations/fastNeutrino/xibeta-alpha={alpha:.2f}.{model}.txt"
+    dm = DemographicModel(modelfn)
+    t = np.logspace(np.log10(dm.times[1]/2), np.log10(2*dm.times[-1]), 100)
+    plt.loglog(t, dm.population_size(t), label=f"{alpha:.2f}")
+plt.legend()
+
+model = 'FixedTimesDense'
+alphas = np.arange(1.5, 2.0, 0.05)
+for alpha in alphas:
+    modelfn = f"../simulations/fastNeutrino/xibeta-alpha={alpha:.2f}.{model}.txt"
+    dm = DemographicModel(modelfn)
+    t = np.logspace(np.log10(dm.times[1]/2), np.log10(2*dm.times[-1]), 100)
+    plt.loglog(t, dm.population_size(t), label=f"{alpha:.2f}")
+plt.legend()
+
+model = 'FixedTimesDense'
+alphas = np.arange(1.5, 2.0, 0.05)
+for alpha in alphas:
+    modelfn = f"../simulations/fastNeutrino/xibeta-alpha={alpha:.2f}.{model}.txt"
+    dm = DemographicModel(modelfn)
+    t = np.logspace(np.log10(dm.times[1]/2), np.log10(2*dm.times[-1]), 100)
+    plt.loglog(t, dm.population_size(t), label=f"{alpha:.2f}")
+plt.legend()
 
 demographic_events = dm.get_demographic_events()
 sample_size = 2
@@ -82,8 +108,8 @@ for alpha in np.arange(1.5, 2.0, 0.05):
 
     t = np.logspace(np.log10(dm.times[1] / 10), np.log10(10 * dm.times[-1]),
                     100)
-    plt.semilogx(t, dm.population_size(t))
-    plt.show()
+    # plt.semilogx(t, dm.population_size(t))
+    # plt.show()
 
     demographic_events = dm.get_demographic_events()
 
@@ -100,3 +126,5 @@ for alpha in np.arange(1.5, 2.0, 0.05):
     plt.semilogx(t, dm.population_size(t))
     plt.show()
 # -
+
+

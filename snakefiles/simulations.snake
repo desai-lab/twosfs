@@ -1,7 +1,7 @@
 import numpy as np
 
 import msprime
-from twosfs.twosfs import sims2sfs
+from twosfs.twosfs import sims2sfs, sfs2pi
 from twosfs.simulations import beta_timescale
 from twosfs.demographicmodel import scaled_demographic_events
 
@@ -38,9 +38,9 @@ rule simulations:
     input:
         'simulations/msprime/kingman.npz',
         expand(['simulations/msprime/xibeta-alpha={alpha}.npz',
-                'simulations/fastNeutrino/xibeta-alpha={alpha}.3Epoch.txt',
-                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.3Epoch.npz'],
-                alpha=ALPHAS)
+                # 'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt'],
+                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz'],
+                alpha=ALPHAS, model=['3Epoch', 'FixedTimes', 'FixedTimesDense'])
     output:
         'simulations.tgz'
     shell:
@@ -103,7 +103,7 @@ rule fastNeutrino:
     log:
         "log/fastNeutrino.{prefix}.{model}.log"
     shell:
-        "fastNeutrino --maxB 10 --maxRandomRestarts 100 "
+        "fastNeutrino --maxB 10 --maxRandomRestarts 1000 "
         "--modelFile {input.modelfile} "
         "--inferredModelOutputFile {output} "
         "< {input.datafile} "
@@ -117,6 +117,8 @@ rule fastNeutrinoInput:
     run:
         n = parameter_map(wildcards.prefix)['sample_size']
         sfs = np.load(input.simulation_file)['onesfs']
+        # Normalize sfs to have T_2 = 4
+        sfs *= 4 / sfs2pi(sfs)
         sfs[0] = 100
         with open(output.sfs_file, 'w') as outfile:
             outfile.write(f'{n}\t1\n')
