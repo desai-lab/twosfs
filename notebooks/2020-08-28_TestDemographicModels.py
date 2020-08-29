@@ -40,7 +40,7 @@ for model in ['3Epoch', 'FixedTimes', 'FixedTimesDense']:
     plt.loglog(t, dm.population_size(t))
 
 model = '3Epoch'
-alphas = np.arange(1.5, 2.0, 0.05)[:9]
+alphas = np.arange(1.5, 2.0, 0.05)
 for alpha in alphas:
     modelfn = f"../simulations/fastNeutrino/xibeta-alpha={alpha:.2f}.{model}.txt"
     dm = DemographicModel(modelfn)
