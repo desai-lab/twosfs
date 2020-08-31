@@ -80,7 +80,8 @@ class DemographicModel:
     def rescale(self, scale=None):
         """Renormalize model parameters by a timescale (Default=N_0)."""
         if scale is None:
-            scale = self.sizes[0]
+            # By default scale so that T2=4
+            scale = self.t2() / 4
         self.sizes = [s / scale for s in self.sizes]
         self.times = [t / scale for t in self.times]
         self.rates = [None if r is None else r * scale for r in self.rates]
@@ -122,16 +123,17 @@ class DemographicModel:
         return 4 * np.sum(sizes * weights)
 
 
-def scaled_demographic_events(filename, num_replicates=100000):
-    """Get msprime demographic events, scaled so that T_2 = 4."""
+def scaled_demographic_events(filename):
+    """
+    Return a list of msprime demographic events scaled so that T2=4.
+
+    Parameters
+    ----------
+    filename : str
+        The name of a fastNeutrino fitted model output file.
+    """
     dm = DemographicModel(filename)
-    demographic_events = dm.get_demographic_events()
-    sims = simulate(sample_size=2,
-                    random_seed=1,
-                    num_replicates=num_replicates,
-                    demographic_events=demographic_events)
-    T2 = sims2pi(sims, num_replicates)
-    dm.rescale(T2 / 4)
+    dm.rescale()
     return dm.get_demographic_events()
 
 
