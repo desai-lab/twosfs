@@ -52,3 +52,11 @@ def sfs2pi(sfs):
     k = np.arange(n + 1)
     weights = 2 * k * (n - k) / (n * (n - 1))
     return np.dot(sfs, weights)
+
+
+def lump_sfs(sfs, kmax):
+    """Lump all sfs bins for k <= kmax into one bin."""
+    sfs_lumped = np.zeros(kmax + 1)
+    sfs_lumped[:-1] = sfs[:kmax]
+    sfs_lumped[-1] = np.sum(sfs[kmax:])
+    return sfs_lumped

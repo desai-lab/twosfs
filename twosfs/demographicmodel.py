@@ -102,6 +102,25 @@ class DemographicModel:
                 PopulationParametersChange(t, initial_size=s, growth_rate=g))
         return events
 
+    def t2(self):
+        """
+        Compute the average branch length for a pair of samples.
+
+        Warning: Only works for constant-size epochs!
+        Note: Proportional to pi.
+        """
+        sizes = np.array(self.sizes)
+        times = np.array(self.times)
+        # The lengths of the intervals, scaled by sizes
+        scaled_intervals = np.empty(self.num_epochs)
+        scaled_intervals[:-1] = (times[1:] - times[:-1]) / sizes[:-1]
+        scaled_intervals[-1] = np.inf
+        # Weights for the contribution of each size to T2
+        weights = np.ones(self.num_epochs)
+        weights[1:] = np.exp(-np.cumsum(scaled_intervals[:-1]))
+        weights *= -np.expm1(-scaled_intervals)
+        return 4 * np.sum(sizes * weights)
+
 
 def scaled_demographic_events(filename, num_replicates=100000):
     """Get msprime demographic events, scaled so that T_2 = 4."""

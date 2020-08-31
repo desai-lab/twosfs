@@ -15,12 +15,14 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.special import kl_div
 
 from twosfs.demographicmodel import DemographicModel
-from twosfs.twosfs import sfs2pi
+from twosfs.twosfs import lump_sfs, sfs2pi
 
 model = '3Epoch'
 alphas = np.arange(1.5, 2.0, 0.05)
+kmax = 10
 
 for alpha in alphas:
     modelfn = f"../simulations/fastNeutrino/xibeta-alpha={alpha:.2f}.{model}.txt"
@@ -55,10 +57,14 @@ for alpha in alphas:
     data = np.load(simfn)
     onesfs_fitted = data['onesfs']
 
-    plt.semilogy(onesfs_beta[:10] / np.sum(onesfs_beta), 'xk')
-    plt.semilogy(onesfs_fitted[:10] / np.sum(onesfs_fitted), '.')
+    beta_lumped = lump_sfs(onesfs_beta, kmax) / np.sum(onesfs_beta)
+    fitted_lumped = lump_sfs(onesfs_fitted, kmax) / np.sum(onesfs_fitted)
+    plt.semilogy(beta_lumped, 'xk')
+    plt.semilogy(fitted_lumped, '.')
     plt.title(f"{alpha:.2f}")
     plt.show()
+
+    print(np.sum(kl_div(fitted_lumped, beta_lumped)))
 
 # ## `fastNeutrino` expectations
 
