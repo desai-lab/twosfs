@@ -55,11 +55,26 @@ def sfs2pi(sfs):
 
 
 def lump_sfs(sfs, kmax):
-    """Lump all sfs bins for k <= kmax into one bin."""
+    """Lump all sfs bins for k>=kmax into one bin."""
     sfs_lumped = np.zeros(kmax + 1)
     sfs_lumped[:-1] = sfs[:kmax]
     sfs_lumped[-1] = np.sum(sfs[kmax:])
     return sfs_lumped
+
+
+def lump_twosfs(twosfs, kmax):
+    """Lump all 2-sfs bins for k>=kmax into one bin."""
+    twosfs_lumped = np.zeros((twosfs.shape[0], kmax + 1, kmax + 1))
+    twosfs_lumped[:, :-1, :-1] = twosfs[:, :kmax, :kmax]
+    twosfs_lumped[:, -1, :-1] = np.sum(twosfs[:, kmax:, :kmax], axis=1)
+    twosfs_lumped[:, :-1, -1] = np.sum(twosfs[:, :kmax, kmax:], axis=2)
+    twosfs_lumped[:, -1, -1] = np.sum(twosfs[:, kmax:, kmax:], axis=(1, 2))
+    return twosfs_lumped
+
+
+def lump_spectra(sfs, twosfs, kmax):
+    """Lump all bins for k>=kmax into one bin."""
+    return lump_sfs(sfs, kmax), lump_twosfs(twosfs, kmax)
 
 
 def save_spectra(filename, onesfs, twosfs):
