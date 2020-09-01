@@ -76,3 +76,25 @@ def load_spectra(filename):
 def avg_spectra(spectra_list):
     """Average a list of tuples (onesfs, twosfs)."""
     return tuple(sum(x) / len(spectra_list) for x in zip(*spectra_list))
+
+
+def export_to_fastNeutrino(filename: str, sfs, sfs_0=100):
+    """Write SFS as a fastNeutrino input file.
+
+    Parameters
+    ----------
+    filename : str
+        The name of the fastNeutrino input file to write.
+    sfs : array_like
+        Length n+1 array containing the site frequency spectrum.
+    sfs_0 : int
+        The number in the zero-class. This does not effect fitting.
+        (Default=100).
+    """
+    n = len(sfs) - 1
+    # Normalize sfs to have T_2 = 4.
+    sfs *= 4 / sfs2pi(sfs)
+    sfs[0] = sfs_0
+    with open(filename, 'w') as outfile:
+        outfile.write(f'{n}\t1\n')
+        outfile.write('\n'.join(map(str, sfs)) + '\n')

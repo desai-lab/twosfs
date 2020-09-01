@@ -1,7 +1,7 @@
 import numpy as np
 
 import msprime
-from twosfs.twosfs import sims2sfs, sfs2pi, save_spectra, load_spectra, avg_spectra
+from twosfs.twosfs import sims2sfs, save_spectra, load_spectra, avg_spectra, export_to_fastNeutrino
 from twosfs.simulations import beta_timescale, filename2seed
 from twosfs.demographicmodel import scaled_demographic_events
 
@@ -16,7 +16,7 @@ def parameter_map(prefix):
     }
 
     if prefix == 'test':
-        parameters = {'sample_size': 11, 'num_replicates': 100}
+        parameters = {'sample_size': 21, 'num_replicates': 100}
     elif prefix == 'kingman':
         parameters = {}
     elif prefix.startswith('xibeta'):
@@ -109,11 +109,5 @@ rule fastNeutrinoInput:
     output:
         sfs_file = temp("simulations/.tmp/{prefix}.sfs.txt")
     run:
-        n = parameter_map(wildcards.prefix)['sample_size']
-        sfs = np.load(input.simulation_file)['onesfs']
-        # Normalize sfs to have T_2 = 4
-        sfs *= 4 / sfs2pi(sfs)
-        sfs[0] = 100
-        with open(output.sfs_file, 'w') as outfile:
-            outfile.write(f'{n}\t1\n')
-            outfile.write('\n'.join(map(str, sfs)) + '\n')
+        sfs = load_spectra(input.simulation_file)[0]
+        export_to_fastNeutrino(output.sfs_file, sfs)
