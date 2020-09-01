@@ -60,3 +60,19 @@ def lump_sfs(sfs, kmax):
     sfs_lumped[:-1] = sfs[:kmax]
     sfs_lumped[-1] = np.sum(sfs[kmax:])
     return sfs_lumped
+
+
+def save_spectra(filename, onesfs, twosfs):
+    """Save SFS and 2-SFS to file."""
+    np.savez_compressed(filename, onesfs=onesfs, twosfs=twosfs)
+
+
+def load_spectra(filename):
+    """Load SFS and 2-SFS from file."""
+    data = np.load(filename)
+    return data['onesfs'], data['twosfs']
+
+
+def avg_spectra(spectra_list):
+    """Average a list of tuples (onesfs, twosfs)."""
+    return tuple(sum(x) / len(spectra_list) for x in zip(*spectra_list))

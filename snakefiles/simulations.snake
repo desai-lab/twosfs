@@ -1,7 +1,7 @@
 import numpy as np
 
 import msprime
-from twosfs.twosfs import sims2sfs, sfs2pi
+from twosfs.twosfs import sims2sfs, sfs2pi, save_spectra, load_spectra, avg_spectra
 from twosfs.simulations import beta_timescale, filename2seed
 from twosfs.demographicmodel import scaled_demographic_events
 
@@ -55,10 +55,10 @@ rule msprime:
         parameters = parameter_map(wildcards.prefix)
         parameters['random_seed'] = filename2seed(output[0])
         sims = msprime.simulate(**parameters)
-        onesfs, twosfs = sims2sfs(sims,
-                                  parameters['sample_size'],
-                                  parameters['length'])
-        np.savez_compressed(output[0], onesfs=onesfs, twosfs=twosfs)
+        spectra = sims2sfs(sims,
+                           parameters['sample_size'],
+                           parameters['length'])
+        save_spectra(output[0], *spectra)
 
 rule msprime_from_fastNeutrino:
     input:
@@ -71,10 +71,10 @@ rule msprime_from_fastNeutrino:
         parameters['demographic_events'] = scaled_demographic_events(input[0])
         parameters['random_seed'] = filename2seed(output[0])
         sims = msprime.simulate(**parameters)
-        onesfs, twosfs = sims2sfs(sims,
-                                  parameters['sample_size'],
-                                  parameters['length'])
-        np.savez_compressed(output[0], onesfs=onesfs, twosfs=twosfs)
+        spectra = sims2sfs(sims,
+                           parameters['sample_size'],
+                           parameters['length'])
+        save_spectra(output[0], *spectra)
 
 
 rule average_runs:
@@ -84,15 +84,9 @@ rule average_runs:
     input:
         expand('simulations/.tmp/{prefix}.rep{rep}.npz', rep=range(10), allow_missing=True)
     run:
-        onesfs = 0.0
-        twosfs = 0.0
-        for infn in input:
-            data = np.load(infn)
-            onesfs += data['onesfs']
-            twosfs += data['twosfs']
-        onesfs /= len(input)
-        twosfs /= len(input)
-        np.savez_compressed(output[0], onesfs=onesfs, twosfs=twosfs)
+        data = [load_spectra(infn) for infn in input]
+        avg = avg_spectra(data)
+        save_spectra(output[0], *avg)
 
 rule fastNeutrino:
     input:
