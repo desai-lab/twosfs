@@ -73,26 +73,92 @@ for alpha, dbeta, dfitted in zip(alphas, data_beta, data_fitted):
     plt.title("alpha = " + alpha)
     plt.legend()
     plt.show()
+    pi_fitted = twosfs.sfs2pi(dfitted[0])
+    print(pi_fitted)
 
-# # Old
+# ## 2-SFS comparisons
+
+# First, look at closest site
+
+d = 1
+for alpha, dbeta, dfitted in zip(alphas, lumped_beta, lumped_fitted):
+    twosfs_beta = dbeta[1][d][1:, 1:]
+    twosfs_beta /= np.sum(twosfs_beta)
+    twosfs_fitted = dfitted[1][d][1:, 1:]
+    twosfs_fitted /= np.sum(twosfs_fitted)
+
+    plt.pcolormesh(np.log2(twosfs_beta / twosfs_fitted),
+                   vmin=-0.5,
+                   vmax=0.5,
+                   cmap="PuOr_r")
+    plt.colorbar()
+    plt.title(alpha)
+    plt.show()
+
+    print(np.sum(rel_entr(twosfs_fitted, twosfs_beta)))
 
 
-def read_fastNeutrino_log(fn):
-    onesfs_fitted = None
-    onesfs_observed = None
-    with open(fn, 'r') as data:
-        for line in data:
-            if line.startswith('Expected  spectrum'):
-                spectrum = data.readline()
-                onesfs_fitted = np.array(spectrum.split(), dtype=float)
-            if line.startswith('Observed  spectrum'):
-                spectrum = data.readline()
-                onesfs_observed = np.array(spectrum.split(), dtype=float)
-    return onesfs_fitted, onesfs_observed
+def conditional_sfs(twosfs):
+    F = np.cumsum(twosfs, axis=1)
+    F /= F[:, -1][:, None]
+    return F
 
 
-fitted, observed = read_fastNeutrino_log('../log/fastNeutrino.test.3Epoch.log')
+def distance(F1, F2):
+    return np.max(np.abs(F1 - F2), axis=1)
 
-k = np.arange(1, 21)
-plt.loglog(k, fitted, '.')
-plt.loglog(k, observed, '.')
+
+d = 1
+for alpha, dbeta, dfitted in zip(alphas, lumped_beta, lumped_fitted):
+    twosfs_beta = dbeta[1][d][1:, 1:]
+    F_beta = conditional_sfs(twosfs_beta)
+    twosfs_fitted = dfitted[1][d][1:, 1:]
+    F_fitted = conditional_sfs(twosfs_fitted)
+    D = distance(F_beta, F_fitted)
+    plt.plot(D)
+    print(np.sum(D))
+
+
+def resample_distance(sampling_dist, comparison_dist, n_obs, n_reps):
+    F_exp = conditional_sfs(comparison_dist)
+    D = np.zeros((n_reps, sampling_dist.shape[0]))
+    for rep in range(n_reps):
+        rand_counts = np.random.multinomial(
+            n_obs, sampling_dist.ravel()).reshape(sampling_dist.shape)
+        rand_counts = (rand_counts + rand_counts.T) / 2
+        cumcounts = np.cumsum(rand_counts, axis=1)
+        n_row = cumcounts[:, -1]
+        F_obs = cumcounts / n_row[:, None]
+        D[rep] = distance(F_exp, F_obs) * np.sqrt(n_row)
+    return D
+
+
+npairs = 50000
+nresample = 1000
+D_kingman = []
+D_beta = []
+for alpha, dbeta, dfitted in zip(alphas, lumped_beta, lumped_fitted):
+    twosfs_beta = dbeta[1][d][1:, 1:]
+    twosfs_beta /= np.sum(twosfs_beta)
+    twosfs_fitted = dfitted[1][d][1:, 1:]
+    twosfs_fitted /= np.sum(twosfs_fitted)
+    D_kingman.append(
+        resample_distance(twosfs_fitted, twosfs_fitted, npairs, nresample))
+    D_beta.append(
+        resample_distance(twosfs_beta, twosfs_fitted, npairs, nresample))
+
+
+def rank(value, comparisons):
+    return np.sum(value[:, None] > comparisons[None, :], axis=0)
+
+
+bins = np.linspace(7, 16, 25)
+for alpha, d_k, d_b in zip(alphas, D_kingman, D_beta):
+    total_k = np.sum(d_k, axis=1)
+    total_b = np.sum(d_b, axis=1)
+    power = np.mean(rank(total_b, total_k) > 0.95 * nresample)
+    plt.hist(total_k, histtype='step', bins=bins)
+    plt.hist(total_b, histtype='step', bins=bins)
+    plt.title(alpha)
+    plt.show()
+    print(power)
