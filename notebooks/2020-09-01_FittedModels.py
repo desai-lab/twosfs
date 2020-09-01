@@ -27,7 +27,7 @@ from twosfs.demographicmodel import DemographicModel
 
 # ## Import data
 
-alphas = [f'{a:.2f}' for a in np.arange(1.5, 2.0, 0.05)]
+alphas = [f'{a:.2f}' for a in np.arange(1.05, 2.0, 0.05)]
 model = '3Epoch'
 sample_size = 100
 kmax = 20
@@ -62,7 +62,8 @@ t = np.logspace(-2, 2, 100)
 for alpha, dm in zip(alphas, demo_models):
     plt.semilogx(t, dm.population_size(t), label=alpha)
 plt.legend(title='alpha')
-plt.ylim([0, 5])
+plt.ylim([0.5, 50])
+plt.yscale('log')
 plt.ylabel('Population size (coal. units)')
 plt.xlabel('Time (coal. units)')
 
@@ -104,7 +105,7 @@ for alpha, dbeta, dfitted in zip(alphas, lumped_beta, lumped_fitted):
     plt.plot(D)
     print(np.sum(D))
 
-npairs = 50000
+npairs = 10000
 nresample = 1000
 D_kingman = []
 D_beta = []
@@ -117,7 +118,7 @@ for alpha, dbeta, dfitted in zip(alphas, lumped_beta, lumped_fitted):
     D_beta.append(
         stats.resample_distance(twosfs_beta, twosfs_fitted, npairs, nresample))
 
-bins = np.linspace(7, 16, 25)
+bins = np.linspace(7, 23, 100)
 for alpha, d_k, d_b in zip(alphas, D_kingman, D_beta):
     total_k = np.sum(d_k, axis=1)
     total_b = np.sum(d_b, axis=1)
@@ -127,3 +128,14 @@ for alpha, d_k, d_b in zip(alphas, D_kingman, D_beta):
     plt.title(alpha)
     plt.show()
     print(power)
+
+power = []
+for alpha, d_k, d_b in zip(alphas, D_kingman, D_beta):
+    total_k = np.sum(d_k, axis=1)
+    total_b = np.sum(d_b, axis=1)
+    power.append(np.mean(stats.rank(total_b, total_k) > 0.95 * nresample))
+plt.plot(np.array(alphas, dtype=float), power, '.')
+plt.ylim([0, 1.05])
+plt.ylabel('Power')
+plt.xlim([1, 2])
+plt.xlabel('alpha')
