@@ -15,12 +15,13 @@
 
 # %load_ext autoreload
 # %autoreload 1
-# %aimport twosfs.demographicmodel, twosfs.simulations, twosfs.twosfs
+# %aimport twosfs.demographicmodel, twosfs.simulations, twosfs.twosfs, twosfs.statistics
 
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.special import rel_entr
 
+import twosfs.statistics as stats
 import twosfs.twosfs as twosfs
 from twosfs.demographicmodel import DemographicModel
 
@@ -35,8 +36,8 @@ modelfn = "../simulations/fastNeutrino/xibeta-alpha={0}.{1}.txt"
 betafn = "../simulations/msprime/xibeta-alpha={0}.npz"
 fittedfn = "../simulations/msprime/fastNeutrino.xibeta-alpha={0}.{1}.npz"
 
-data_kingman = twosfs.load_spectra('../simulations/msprime/kingman.npz')
-print(twosfs.sfs2pi(data_kingman[0]))
+spectra = twosfs.load_spectra('../simulations/msprime/kingman.npz')
+data_kingman = twosfs.normalize_spectra(*spectra)
 
 demo_models = []
 data_beta = []
@@ -46,8 +47,10 @@ for alpha in alphas:
     dm.rescale()
     demo_models.append(dm)
 
-    data_beta.append(twosfs.load_spectra(betafn.format(alpha)))
-    data_fitted.append(twosfs.load_spectra(fittedfn.format(alpha, model)))
+    spectra = twosfs.load_spectra(betafn.format(alpha))
+    data_beta.append(twosfs.normalize_spectra(*spectra))
+    spectra = twosfs.load_spectra(fittedfn.format(alpha, model))
+    data_fitted.append(twosfs.normalize_spectra(*spectra))
 
 lumped_kingman = twosfs.lump_spectra(*data_kingman, kmax=kmax)
 lumped_beta = [twosfs.lump_spectra(*s, kmax=kmax) for s in data_beta]
@@ -73,20 +76,15 @@ for alpha, dbeta, dfitted in zip(alphas, data_beta, data_fitted):
     plt.title("alpha = " + alpha)
     plt.legend()
     plt.show()
-    pi_fitted = twosfs.sfs2pi(dfitted[0])
-    print(pi_fitted)
 
 # ## 2-SFS comparisons
 
-# First, look at closest site
+# First, look at no recombination
 
-d = 1
+d = 0
 for alpha, dbeta, dfitted in zip(alphas, lumped_beta, lumped_fitted):
     twosfs_beta = dbeta[1][d][1:, 1:]
-    twosfs_beta /= np.sum(twosfs_beta)
     twosfs_fitted = dfitted[1][d][1:, 1:]
-    twosfs_fitted /= np.sum(twosfs_fitted)
-
     plt.pcolormesh(np.log2(twosfs_beta / twosfs_fitted),
                    vmin=-0.5,
                    vmax=0.5,
@@ -97,41 +95,14 @@ for alpha, dbeta, dfitted in zip(alphas, lumped_beta, lumped_fitted):
 
     print(np.sum(rel_entr(twosfs_fitted, twosfs_beta)))
 
-
-def conditional_sfs(twosfs):
-    F = np.cumsum(twosfs, axis=1)
-    F /= F[:, -1][:, None]
-    return F
-
-
-def distance(F1, F2):
-    return np.max(np.abs(F1 - F2), axis=1)
-
-
-d = 1
 for alpha, dbeta, dfitted in zip(alphas, lumped_beta, lumped_fitted):
     twosfs_beta = dbeta[1][d][1:, 1:]
-    F_beta = conditional_sfs(twosfs_beta)
+    F_beta = stats.conditional_sfs(twosfs_beta)
     twosfs_fitted = dfitted[1][d][1:, 1:]
-    F_fitted = conditional_sfs(twosfs_fitted)
-    D = distance(F_beta, F_fitted)
+    F_fitted = stats.conditional_sfs(twosfs_fitted)
+    D = stats.distance(F_beta, F_fitted)
     plt.plot(D)
     print(np.sum(D))
-
-
-def resample_distance(sampling_dist, comparison_dist, n_obs, n_reps):
-    F_exp = conditional_sfs(comparison_dist)
-    D = np.zeros((n_reps, sampling_dist.shape[0]))
-    for rep in range(n_reps):
-        rand_counts = np.random.multinomial(
-            n_obs, sampling_dist.ravel()).reshape(sampling_dist.shape)
-        rand_counts = (rand_counts + rand_counts.T) / 2
-        cumcounts = np.cumsum(rand_counts, axis=1)
-        n_row = cumcounts[:, -1]
-        F_obs = cumcounts / n_row[:, None]
-        D[rep] = distance(F_exp, F_obs) * np.sqrt(n_row)
-    return D
-
 
 npairs = 50000
 nresample = 1000
@@ -139,24 +110,18 @@ D_kingman = []
 D_beta = []
 for alpha, dbeta, dfitted in zip(alphas, lumped_beta, lumped_fitted):
     twosfs_beta = dbeta[1][d][1:, 1:]
-    twosfs_beta /= np.sum(twosfs_beta)
     twosfs_fitted = dfitted[1][d][1:, 1:]
-    twosfs_fitted /= np.sum(twosfs_fitted)
     D_kingman.append(
-        resample_distance(twosfs_fitted, twosfs_fitted, npairs, nresample))
+        stats.resample_distance(twosfs_fitted, twosfs_fitted, npairs,
+                                nresample))
     D_beta.append(
-        resample_distance(twosfs_beta, twosfs_fitted, npairs, nresample))
-
-
-def rank(value, comparisons):
-    return np.sum(value[:, None] > comparisons[None, :], axis=0)
-
+        stats.resample_distance(twosfs_beta, twosfs_fitted, npairs, nresample))
 
 bins = np.linspace(7, 16, 25)
 for alpha, d_k, d_b in zip(alphas, D_kingman, D_beta):
     total_k = np.sum(d_k, axis=1)
     total_b = np.sum(d_b, axis=1)
-    power = np.mean(rank(total_b, total_k) > 0.95 * nresample)
+    power = np.mean(stats.rank(total_b, total_k) > 0.95 * nresample)
     plt.hist(total_k, histtype='step', bins=bins)
     plt.hist(total_b, histtype='step', bins=bins)
     plt.title(alpha)

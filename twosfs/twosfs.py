@@ -93,6 +93,18 @@ def avg_spectra(spectra_list):
     return tuple(sum(x) / len(spectra_list) for x in zip(*spectra_list))
 
 
+def normalize_spectra(onesfs, twosfs, mode='sum'):
+    """Normalize SFS and 2-SFS by their sum or by pi."""
+    if mode == 'sum':
+        scale1 = np.sum(onesfs)
+        scale2 = np.sum(twosfs, axis=(1, 2))
+    elif mode == 'pi':
+        pi = sfs2pi(onesfs)
+        scale1 = pi
+        scale2 = pi**2
+    return onesfs / scale1, twosfs / scale2[:, None, None]
+
+
 def export_to_fastNeutrino(filename: str, sfs, sfs_0=100):
     """Write SFS as a fastNeutrino input file.
 
