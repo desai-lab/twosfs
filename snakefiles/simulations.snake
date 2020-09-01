@@ -31,7 +31,8 @@ def parameter_map(prefix):
     return dict(default_parameters, **parameters)
 
 
-ALPHAS = [f'{a:.2f}' for a in np.arange(1.5, 2.0, 0.05)]
+d_alpha = 0.05
+ALPHAS = [f'{a:.2f}' for a in np.arange(1 + d_alpha, 2.0, d_alpha)]
 
 rule simulations:
     group: 'cleanup'
