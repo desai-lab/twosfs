@@ -43,12 +43,15 @@ class DemographicModel:
                 else:
                     raise ValueError('Warning, bad line: ' + line.strip())
                     break
-
                 # Add epoch to model.
+                # Scale population size to match msprime model
                 # TODO: handle time order errors.
+                n /= 2
                 self.add_epoch(start_time, n, g)
                 # Set next epoch start time to current epoch end time
                 start_time = t
+        # Scale population size to match msprime model
+        n_anc /= 2
         # Add ancestral population size as the last epoch
         self.add_epoch(start_time, n_anc, None)
 
