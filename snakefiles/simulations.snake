@@ -11,7 +11,7 @@ def parameter_map(prefix):
     default_parameters = {
         'sample_size': 100,
         'length': 100,
-        'recombination_rate': 0.1,
+        'recombination_rate': 0.1 / 4, # Scaled so that rT2 = 0.1 per site
         'num_replicates': 10000,
     }
 
@@ -39,8 +39,8 @@ rule simulations:
     input:
         'simulations/msprime/kingman.npz',
         expand(['simulations/msprime/xibeta-alpha={alpha}.npz',
-                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
-                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz'],
+                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt'],
+                #                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz'],
                 alpha=ALPHAS, model=['3Epoch'])
     output:
         'simulations.tgz'
