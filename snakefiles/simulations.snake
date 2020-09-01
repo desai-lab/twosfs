@@ -37,9 +37,9 @@ rule simulations:
     group: 'cleanup'
     input:
         'simulations/msprime/kingman.npz',
-        expand(['simulations/msprime/xibeta-alpha={alpha}.npz'],
-                # 'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
-                # 'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz'],
+        expand(['simulations/msprime/xibeta-alpha={alpha}.npz',
+                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt'
+                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz'],
                 alpha=ALPHAS, model=['3Epoch'])
     output:
         'simulations.tgz'
