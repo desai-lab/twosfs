@@ -67,8 +67,11 @@ rule msprime_from_fastNeutrino:
     output:
         temp('simulations/.tmp/fastNeutrino.{prefix}.rep{rep}.npz')
     run:
-        # Use Kingman parameters, but add demographic events properly scaled
-        parameters = parameter_map('kingman')
+        if prefix == 'test':
+            parameters = parameter_map('test')
+        else:
+            # Use Kingman parameters, but add demographic events properly scaled
+            parameters = parameter_map('kingman')
         parameters['demographic_events'] = scaled_demographic_events(input[0])
         parameters['random_seed'] = filename2seed(output[0])
         sims = msprime.simulate(**parameters)
