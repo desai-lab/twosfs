@@ -1,3 +1,4 @@
+"""Helper functions for running msprime simulations."""
 from hashlib import blake2b
 
 import numpy as np
@@ -6,13 +7,16 @@ from scipy.special import betaln
 
 def beta_timescale(alpha, pop_size=1.0):
     """Compute the timescale of the beta coalescent."""
-    m = 2 + np.exp(alpha * np.log(2) +
-                   (1 - alpha) * np.log(3) - np.log(alpha - 1))
+    m = 2 + np.exp(alpha * np.log(2) + (1 - alpha) * np.log(3) - np.log(alpha - 1))
     N = pop_size / 2
     # The initial 2 is so that the rescaling by beta_timescale
     # gives T_2 = 4
-    ret = 2 * np.exp(alpha * np.log(m) + (alpha - 1) * np.log(N) -
-                     np.log(alpha) - betaln(2 - alpha, alpha))
+    ret = 2 * np.exp(
+        alpha * np.log(m)
+        + (alpha - 1) * np.log(N)
+        - np.log(alpha)
+        - betaln(2 - alpha, alpha)
+    )
     return ret
 
 
@@ -46,4 +50,4 @@ def filename2seed(filename: str):
     2028164767 0.8321152367526514
     """
     h = blake2b(filename.encode(), digest_size=4)
-    return int.from_bytes(h.digest(), 'big')
+    return int.from_bytes(h.digest(), "big")

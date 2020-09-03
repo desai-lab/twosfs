@@ -1,14 +1,13 @@
+"""Defines a class of demographic models for translating and scaling."""
 import functools
-import sys
 
 import numpy as np
-
-from msprime import PopulationParametersChange, simulate
-from twosfs.twosfs import sims2pi
+from msprime import PopulationParametersChange
 
 
 class DemographicModel:
     """Stores piecewise-exponential demographic models."""
+
     def __init__(self, filename=None):
         # Number of epochs. Must equal the lengths of the following lists:
         self.num_epochs = 0
@@ -33,15 +32,15 @@ class DemographicModel:
             start_time = 0.0
             for line in modelfile:
                 # Get epoch parameters.
-                if line.startswith('c'):
+                if line.startswith("c"):
                     # Constant-N epoch
                     n, t = map(float, line.split()[-2:])
                     g = None
-                elif line.startswith('e'):
+                elif line.startswith("e"):
                     # Exponential-growth epoch
                     n, t, g = map(float, line.split()[-3:])
                 else:
-                    raise ValueError('Warning, bad line: ' + line.strip())
+                    raise ValueError("Warning, bad line: " + line.strip())
                     break
                 # Add epoch to model.
                 # Scale population size to match msprime model
@@ -63,8 +62,7 @@ class DemographicModel:
             self.sizes.append(size)
             self.rates.append(rate)
         else:
-            raise ValueError(
-                'New epoch time is less than previous epoch time.')
+            raise ValueError("New epoch time is less than previous epoch time.")
 
     def population_size(self, T):
         """Return the population size at time T."""
@@ -90,20 +88,11 @@ class DemographicModel:
         self.rates = [None if r is None else r * scale for r in self.rates]
         return scale
 
-    # TODO: Remove
-    def print_msprime_flags(self):
-        """DEPRECATED Print model params as flags simulate_joint_sfs.py."""
-        # WARNING: only works for constant-time epochs (for now)
-        flags = '-T ' + ' '.join(map(str, self.times))
-        flags += ' -S ' + ' '.join(map(str, self.sizes))
-        sys.stdout.write(flags)
-
     def get_demographic_events(self):
         """Get a list of demographic_events for msprime simulations."""
         events = []
         for t, s, g in zip(self.times, self.sizes, self.rates):
-            events.append(
-                PopulationParametersChange(t, initial_size=s, growth_rate=g))
+            events.append(PopulationParametersChange(t, initial_size=s, growth_rate=g))
         return events
 
     def t2(self):
