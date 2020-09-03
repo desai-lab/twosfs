@@ -74,8 +74,8 @@ dadi.Plotting.plot_1d_comp_multinom(model, data)
 # ## Fitting a Xi-Beta SFS
 
 alpha = 1.8
-sim_file = f'../simulations/msprime/xibeta-alpha={alpha:.2f}.npz'
-fs_xibeta_array = np.load(sim_file)['onesfs']
+sim_file = f"../simulations/msprime/xibeta-alpha={alpha:.2f}.npz"
+fs_xibeta_array = np.load(sim_file)["onesfs"]
 fs_xibeta_array
 
 fs_xibeta = dadi.Spectrum(fs_xibeta_array).fold()

@@ -18,9 +18,9 @@ import numpy as np
 from scipy.special import kl_div
 
 from twosfs.demographicmodel import DemographicModel
-from twosfs.twosfs import lump_sfs, sfs2pi
+from twosfs.twosfs import lump_sfs
 
-model = '3Epoch'
+model = "3Epoch"
 alphas = np.arange(1.5, 2.0, 0.05)
 kmax = 10
 
@@ -34,33 +34,33 @@ plt.legend()
 for alpha in alphas:
     simfn = f"../simulations/msprime/fastNeutrino.xibeta-alpha={alpha:.2f}.{model}.npz"
     data = np.load(simfn)
-    onesfs = data['onesfs']
-    plt.loglog(onesfs / onesfs[1], '.', label=f"{alpha:.2f}")
+    onesfs = data["onesfs"]
+    plt.loglog(onesfs / onesfs[1], ".", label=f"{alpha:.2f}")
 plt.legend()
 
 for alpha in alphas:
     simfn = f"../simulations/msprime/xibeta-alpha={alpha:.2f}.npz"
     data = np.load(simfn)
-    onesfs = data['onesfs']
-    plt.loglog(onesfs / onesfs[1], '.', label=f"{alpha:.2f}")
+    onesfs = data["onesfs"]
+    plt.loglog(onesfs / onesfs[1], ".", label=f"{alpha:.2f}")
 plt.legend()
 
 # ## `msprime` simulation comparisons
 
-model = '3Epoch'
+model = "3Epoch"
 for alpha in alphas:
     simfn = f"../simulations/msprime/xibeta-alpha={alpha:.2f}.npz"
     data = np.load(simfn)
-    onesfs_beta = data['onesfs']
+    onesfs_beta = data["onesfs"]
 
     simfn = f"../simulations/msprime/fastNeutrino.xibeta-alpha={alpha:.2f}.{model}.npz"
     data = np.load(simfn)
-    onesfs_fitted = data['onesfs']
+    onesfs_fitted = data["onesfs"]
 
     beta_lumped = lump_sfs(onesfs_beta, kmax) / np.sum(onesfs_beta)
     fitted_lumped = lump_sfs(onesfs_fitted, kmax) / np.sum(onesfs_fitted)
-    plt.semilogy(beta_lumped, 'xk')
-    plt.semilogy(fitted_lumped, '.')
+    plt.semilogy(beta_lumped, "xk")
+    plt.semilogy(fitted_lumped, ".")
     plt.title(f"{alpha:.2f}")
     plt.show()
 
@@ -68,20 +68,21 @@ for alpha in alphas:
 
 # ## `fastNeutrino` expectations
 
-model = '3Epoch'
+model = "3Epoch"
 for alpha in alphas:
     fn = f"../log/fastNeutrino.xibeta-alpha={alpha:.2f}.{model}.log"
-    with open(fn, 'r') as data:
+    with open(fn, "r") as data:
         for line in data:
-            if line.startswith('Expected  spectrum'):
+            if line.startswith("Expected  spectrum"):
                 spectrum = data.readline()
                 onesfs_fitted = np.array(spectrum.split(), dtype=float)
-            if line.startswith('Observed  spectrum'):
+            if line.startswith("Observed  spectrum"):
                 spectrum = data.readline()
                 onesfs_beta = np.array(spectrum.split(), dtype=float)
-    plt.semilogy(onesfs_beta / np.sum(onesfs_beta), 'xk')
-    plt.semilogy(onesfs_fitted / np.sum(onesfs_fitted), '.')
+    plt.semilogy(onesfs_beta / np.sum(onesfs_beta), "xk")
+    plt.semilogy(onesfs_fitted / np.sum(onesfs_fitted), ".")
     plt.title(f"{alpha:.2f}")
     plt.show()
 
-# `fastNeutrino` is expecting better fits than our simulations produce. Will need to troubleshoot.
+# `fastNeutrino` is expecting better fits than our simulations produce.
+# Will need to troubleshoot.

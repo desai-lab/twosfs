@@ -49,7 +49,7 @@ def filename2seed(filename: str):
     2028164767 0.8321152367526514
     """
     h = blake2b(filename.encode(), digest_size=4)
-    return int.from_bytes(h.digest(), 'big')
+    return int.from_bytes(h.digest(), "big")
 
 
 # +
@@ -61,8 +61,8 @@ for rep in range(100):
     fn2 = f"path/to/my_other_simulation_output.rep{rep}.txt"
     seeds1[rep] = filename2seed(fn1)
     seeds2[rep] = filename2seed(fn2)
-plt.plot(seeds1, '.')
-plt.plot(seeds2, '.')
+plt.plot(seeds1, ".")
+plt.plot(seeds2, ".")
 # -
 
 plt.scatter(seeds1, seeds2)
@@ -71,8 +71,7 @@ nreps = 100000
 seeds = np.zeros(nreps, dtype=int)
 for rep in range(nreps):
     fn = f"path/to/my_simulation_output.rep{rep}.txt"
-    seeds[rep] = int.from_bytes(
-        blake2b(fn.encode(), digest_size=4).digest(), 'big')
-print(min(seeds) / 2**32)
-print(max(seeds) / 2**32)
-plt.hist(seeds, bins=np.linspace(0, 2**32, 100))
+    seeds[rep] = int.from_bytes(blake2b(fn.encode(), digest_size=4).digest(), "big")
+print(min(seeds) / 2 ** 32)
+print(max(seeds) / 2 ** 32)
+plt.hist(seeds, bins=np.linspace(0, 2 ** 32, 100))
