@@ -1,7 +1,7 @@
 import numpy as np
 
 import msprime
-from twosfs.twosfs import sims2sfs, save_spectra, load_spectra, avg_spectra, export_to_fastNeutrino
+from twosfs import spectra_from_TreeSequences, load_spectra, avg_spectra
 from twosfs.simulations import beta_timescale, filename2seed
 from twosfs.demographicmodel import scaled_demographic_events
 
@@ -14,7 +14,6 @@ def parameter_map(prefix):
         'recombination_rate': 0.1 / 4, # Scaled so that rT2 = 0.1 per site
         'num_replicates': 10000,
     }
-
     if prefix == 'test':
         parameters = {'sample_size': 21, 'num_replicates': 100}
     elif prefix == 'kingman':
@@ -27,7 +26,6 @@ def parameter_map(prefix):
                       'recombination_rate':r}
     else:
         raise KeyError('Simulation prefix not found')
-
     return dict(default_parameters, **parameters)
 
 
@@ -39,7 +37,7 @@ rule simulations:
     input:
         'simulations/msprime/kingman.npz',
         expand(['simulations/msprime/xibeta-alpha={alpha}.npz',
-                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt'],
+                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
                 'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz'],
                 alpha=ALPHAS, model=['3Epoch'])
     output:
@@ -56,10 +54,11 @@ rule msprime:
         parameters = parameter_map(wildcards.prefix)
         parameters['random_seed'] = filename2seed(output[0])
         sims = msprime.simulate(**parameters)
-        spectra = sims2sfs(sims,
-                           parameters['sample_size'],
-                           parameters['length'])
-        save_spectra(output[0], *spectra)
+        spectra = spectra_from_TreeSequences(sims,
+                                             parameters['sample_size'],
+                                             parameters['length'],
+                                             parameters['recombination_rate'])
+        spectra.save(output[0])
 
 rule msprime_from_fastNeutrino:
     input:
@@ -67,7 +66,7 @@ rule msprime_from_fastNeutrino:
     output:
         temp('simulations/.tmp/fastNeutrino.{prefix}.rep{rep}.npz')
     run:
-        if prefix == 'test':
+        if wildcards.prefix == 'test':
             parameters = parameter_map('test')
         else:
             # Use Kingman parameters, but add demographic events properly scaled
@@ -75,11 +74,11 @@ rule msprime_from_fastNeutrino:
         parameters['demographic_events'] = scaled_demographic_events(input[0])
         parameters['random_seed'] = filename2seed(output[0])
         sims = msprime.simulate(**parameters)
-        spectra = sims2sfs(sims,
-                           parameters['sample_size'],
-                           parameters['length'])
-        save_spectra(output[0], *spectra)
-
+        spectra = spectra_from_TreeSequences(sims,
+                                             parameters['sample_size'],
+                                             parameters['length'],
+                                             parameters['recombination_rate'])
+        spectra.save(output[0])
 
 rule average_runs:
     group: 'cleanup'
@@ -90,7 +89,7 @@ rule average_runs:
     run:
         data = [load_spectra(infn) for infn in input]
         avg = avg_spectra(data)
-        save_spectra(output[0], *avg)
+        avg.save(output[0])
 
 rule fastNeutrino:
     input:
@@ -113,5 +112,5 @@ rule fastNeutrinoInput:
     output:
         sfs_file = temp("simulations/.tmp/{prefix}.sfs.txt")
     run:
-        sfs = load_spectra(input.simulation_file)[0]
-        export_to_fastNeutrino(output.sfs_file, sfs)
+        spectra = load_spectra(input.simulation_file)
+        spectra.export_to_fastNeutrino(output.sfs_file)
