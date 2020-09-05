@@ -126,14 +126,7 @@ rule SLiM_simulate:
     params:
         time = 30,
         mem = 1000,
-        fname = 'gamma_{wildcards.g}_mu_{wilcards.mu}_s_{wildcards.s}_run_{wildcards.run}.trees'
     shell:
          "./../build/slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s} -d gamma={wildcards.g}*1e-8 twosfs/slim_sim.txt"
-
-rule test:
-    output:
-        'test.trees'
-    shell:
-        "./../build/slim test_slim.txt"
 
 
