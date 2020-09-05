@@ -2,8 +2,6 @@
 // Takes mutation rate (mu), mutation effect size (s), and 
 // recombination rate (gamma) as command line arguments
 
-// To run from the command line, run ./slim -d mu=## -d s=## -d gamma=## slim_sim.txt
-
 
 initialize() {
         initializeTreeSeq();
@@ -21,7 +19,7 @@ initialize() {
 
 20000 late() {
 	sim.treeSeqSimplify();
-	sim.treeSeqOutput(save_path + fname + '.trees');
+	sim.treeSeqOutput(fname);
         sim.simulationFinished();
 }
 

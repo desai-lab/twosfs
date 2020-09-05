@@ -39,7 +39,7 @@ rule simulations:
     input:
         'simulations/msprime/kingman.npz',
         expand(['simulations/msprime/xibeta-alpha={alpha}.npz',
-                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt'],
+                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
                 'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz'],
                 alpha=ALPHAS, model=['3Epoch'])
     output:
@@ -115,3 +115,25 @@ rule fastNeutrinoInput:
     run:
         sfs = load_spectra(input.simulation_file)[0]
         export_to_fastNeutrino(output.sfs_file, sfs)
+
+####################################################################################
+
+#### SLiM code ####
+
+rule SLiM_simulate:
+    output:
+        '{path}/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
+    params:
+        time = 30,
+        mem = 1000,
+        fname = 'gamma_{wildcards.g}_mu_{wilcards.mu}_s_{wildcards.s}_run_{wildcards.run}.trees'
+    shell:
+         "./../build/slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s} -d gamma={wildcards.g}*1e-8 twosfs/slim_sim.txt"
+
+rule test:
+    output:
+        'test.trees'
+    shell:
+        "./../build/slim test_slim.txt"
+
+
