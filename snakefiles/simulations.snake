@@ -5,7 +5,6 @@ from twosfs.twosfs import sims2sfs, save_spectra, load_spectra, avg_spectra, exp
 from twosfs.simulations import beta_timescale, filename2seed
 from twosfs.demographicmodel import scaled_demographic_events
 
-
 def parameter_map(prefix):
     """Convert a file prefix to a set of msprime parameters."""
     default_parameters = {
@@ -114,19 +113,3 @@ rule fastNeutrinoInput:
         sfs_file = temp("simulations/.tmp/{prefix}.sfs.txt")
     run:
         sfs = load_spectra(input.simulation_file)[0]
-        export_to_fastNeutrino(output.sfs_file, sfs)
-
-####################################################################################
-
-#### SLiM code ####
-
-rule SLiM_simulate:
-    output:
-        '{path}/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
-    params:
-        time = 30,
-        mem = 1000,
-    shell:
-         "./../build/slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s} -d gamma={wildcards.g}*1e-8 twosfs/slim_sim.txt"
-
-
