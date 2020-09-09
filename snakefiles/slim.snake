@@ -1,0 +1,27 @@
+import numpy as np
+import msprime
+from slim.sfs_slim import get_sfs
+
+rule SLiM_simulate:
+    output:
+        '{path}/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
+    params:
+        time = 30,
+        mem = 1000,
+    shell:
+         "./../build/slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s} -d gamma={wildcards.g}*1e-8 twosfs/slim_sim.txt"
+
+
+rule sfs_SLiM:
+    output:
+        '{path}/sfs_gamma_{g}_mu_{mu}_s_{s}.npy'
+    run:
+        handle = wildcards.path+'/gamma_'+wildcards.g+'_mu_'+wildcards.mu+'_s_'+wildcards.s
+        for i in range(10):
+            fname = handle+'_run_'+str(i+1)+'.trees'
+            afs = get_sfs(fname,100)
+
+
+
+
+
