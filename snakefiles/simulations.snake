@@ -54,7 +54,7 @@ rule msprime:
         parameters['random_seed'] = filename2seed(output[0])
         sims = msprime.simulate(**parameters)
         spectra = spectra_from_TreeSequences(sims,
-                                             parameters['sample_size'],
+                                             parameters['sample_size'])
 
 rule msprime_from_fastNeutrino:
     input:

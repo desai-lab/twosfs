@@ -3,17 +3,21 @@ import pyslim
 import sys
 import random
 
-def get_sfs(f_name,sample_size):
-    tseq = pyslim.load(f_name).simplify()
-    
-    windows = [0,5e7-5,5e7-4,5e7-3,5e7-2,5e7-1,5e7,5e7+1,5e7+2,5e7+3,5e7+4,1e8]
+def get_sfs(f_name, sample_size,length):
 
-    onesfs = np.zeros([sample_size+1])
+    tseq = pyslim.load(f_name).simplify()
+
+    windows = np.zeros(length + 3)
+    windows[1:-1] = 5e7 - np.floor(length/2) + np.arange(101)
+    windows[-1] = 1e8
     samples = [random.sample(range(2000), k=sample_size)]
 
-    afs = tseq.allele_frequency_spectrum(sample_sets=samples, mode='branch', polarised=True, windows=windows)
-    print(afs.shape)
-    onesfs += np.mean(afs[1:-1,:],axis=0)
+    onesfs = np.zeros([sample_size + 1])
+    twosfs = np.zeros([length, sample_size + 1, sample_size + 1])
 
-    return onesfs
+    afs = tseq.allele_frequency_spectrum(sample_sets=samples, mode='branch', polarised=True, windows=windows)[1:-1,:]
+    onesfs += np.mean(afs, axis=0)
+    twosfs += afs[:,None,:]*afs[:,:,None]
+
+    return onesfs, twosfs
 

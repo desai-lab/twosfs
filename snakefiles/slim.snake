@@ -2,7 +2,7 @@ import numpy as np
 import msprime
 from slim.sfs_slim import get_sfs
 
-rule SLiM_simulate:
+rule run_SLiM:
     output:
         '{path}/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
     params:
@@ -12,16 +12,24 @@ rule SLiM_simulate:
          "./../build/slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s} -d gamma={wildcards.g}*1e-8 twosfs/slim_sim.txt"
 
 
-rule sfs_SLiM:
+rule sfs_from_tseq:
     output:
         '{path}/sfs_gamma_{g}_mu_{mu}_s_{s}.npy'
     run:
         handle = wildcards.path+'/gamma_'+wildcards.g+'_mu_'+wildcards.mu+'_s_'+wildcards.s
-        for i in range(10):
+        sample_size = 100
+        length = 100
+
+        onesfs = np.zeros([sample_size + 1])
+        twosfs = np.zeros([length, sample_size + 1, sample_size + 1])
+
+        num_reps = 10
+        for i in range(num_reps):
             fname = handle+'_run_'+str(i+1)+'.trees'
-            afs = get_sfs(fname,100)
+            afs, twoafs = get_sfs(fname, sample_size, length)
 
+            onesfs += afs / num_reps
+            twosfs += twoafs / num_reps
 
-
-
+        print(onesfs)
 
