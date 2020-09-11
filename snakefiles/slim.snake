@@ -32,4 +32,3 @@ rule sfs_from_tseq:
             twosfs += twoafs / num_reps
 
         print(onesfs)
-
