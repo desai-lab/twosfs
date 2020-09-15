@@ -2,6 +2,23 @@ import numpy as np
 import msprime
 from slim.sfs_slim import get_sfs
 
+rule fastNeutrino:
+    input:
+        datafile = "{path}/{prefix}.sfs.txt",
+        modelfile = "twosfs/models/{model}.txt"
+    output:
+        "{path}/fastNeutrino/{prefix}.{model}.txt"
+    log:
+        "log/fastNeutrino.{prefix}.{model}.log"
+    shell:
+        "fastNeutrino --maxB 20 --maxRandomRestarts 100 "
+        "--modelFile {input.modelfile} "
+        "--inferredModelOutputFile {output} "
+        "< {input.datafile} "
+        "> {log}"
+
+
+
 rule run_SLiM:
     output:
         '{path}/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
@@ -9,12 +26,15 @@ rule run_SLiM:
         time = 30,
         mem = 1000,
     shell:
-         "./../build/slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s} -d gamma={wildcards.g}*1e-8 twosfs/slim_sim.txt"
+         "./../build/slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s}/100 -d gamma={wildcards.g}*1e-8 slim/slim_sim.txt"
 
 
 rule sfs_from_tseq:
     output:
-        '{path}/sfs_gamma_{g}_mu_{mu}_s_{s}.npy'
+        '{path}/gamma_{g}_mu_{mu}_s_{s}.sfs.txt'
+    params:
+        time = 5,
+        mem = 1000,
     run:
         handle = wildcards.path+'/gamma_'+wildcards.g+'_mu_'+wildcards.mu+'_s_'+wildcards.s
         sample_size = 100
@@ -25,11 +45,10 @@ rule sfs_from_tseq:
 
         num_reps = 10
         for i in range(num_reps):
-            fname = handle+'_run_'+str(i+1)+'.trees'
-            afs, twoafs = get_sfs(fname, sample_size, length)
+            load_name = handle+'_run_'+str(i+1)+'.trees'
+            afs, twoafs = get_sfs(load_name, sample_size, length)
 
             onesfs += afs / num_reps
             twosfs += twoafs / num_reps
 
-        print(onesfs)
 
