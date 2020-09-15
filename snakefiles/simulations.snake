@@ -42,13 +42,6 @@ ALPHAS = [f'{a:.2f}' for a in np.arange(1 + d_alpha, 2.0, d_alpha)]
 GS = [f'{g:.1f}' for g in [0.5, 1.0, 2.0]]
 TS = [f'{t:.1f}' for t in [0.5, 1.0, 2.0]]
 
-rule expgrowth:
-    input:
-        expand(['simulations/msprime/expgrowth-g={g}-t={t}.npz',
-                "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
-                "simulations/msprime/fastNeutrino.expgrowth-g={g}-t={t}.{model}.npz",
-                ], g=GS, t=TS, model=['3Epoch'])
-
 rule simulations:
     group: 'cleanup'
     input:
@@ -56,7 +49,10 @@ rule simulations:
         expand(['simulations/msprime/xibeta-alpha={alpha}.npz',
                 'simulations/msprime/expgrowth-g={g}-t={t}.npz',
                 'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
-                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz'],
+                "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
+                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz',
+                "simulations/msprime/fastNeutrino.expgrowth-g={g}-t={t}.{model}.npz",
+                ],
                 alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
     output:
         'simulations.tgz'
