@@ -46,7 +46,8 @@ rule simulations:
     group: 'cleanup'
     input:
         'simulations/msprime/kingman.npz',
-        expand(['simulations/msprime/xibeta-alpha={alpha}.npz',
+        expand([
+                'simulations/msprime/xibeta-alpha={alpha}.npz',
                 'simulations/msprime/expgrowth-g={g}-t={t}.npz',
                 'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
                 "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",

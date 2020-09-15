@@ -94,3 +94,24 @@ for i, t in enumerate(times):
         dm.rescale()
         ax1.semilogy(T, dm.population_size(T))
         print(dm.t2())
+
+initial_size = 1.0
+rates = [0.5, 1.0, 2.0]
+times = [0.5, 1.0, 2.0]
+for i, t in enumerate(times):
+    for r in rates:
+        dm = DemographicModel()
+        dm.add_epoch(0.0, init_size, r)
+        dm.add_epoch(t, init_size * np.exp(-r * t))
+        dm.rescale()
+
+        dm2 = DemographicModel(
+            f"../simulations/fastNeutrino/expgrowth-g={r}-t={t}.3Epoch.txt"
+        )
+        dm2.rescale()
+
+        plt.plot(T, dm.population_size(T))
+        plt.plot(T, dm2.population_size(T))
+        plt.title(f"g = {r}\nt = {t}")
+        plt.ylim([0, 3.1])
+        plt.show()
