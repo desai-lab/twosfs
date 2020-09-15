@@ -3,6 +3,7 @@ import functools
 
 import numpy as np
 from msprime import PopulationParametersChange
+from scipy.special import exp1
 
 
 class DemographicModel:
@@ -95,7 +96,7 @@ class DemographicModel:
             events.append(PopulationParametersChange(t, initial_size=s, growth_rate=g))
         return events
 
-    def t2(self):
+    def _legacy_t2(self):
         """
         Compute the average branch length for a pair of samples.
 
@@ -106,13 +107,46 @@ class DemographicModel:
         times = np.array(self.times)
         # The lengths of the intervals, scaled by sizes
         scaled_intervals = np.empty(self.num_epochs)
-        scaled_intervals[:-1] = (times[1:] - times[:-1]) / sizes[:-1]
+        scaled_intervals[:-1] = (times[1:] - times[:-1]) / (2 * sizes[:-1])
         scaled_intervals[-1] = np.inf
         # Weights for the contribution of each size to T2
         weights = np.ones(self.num_epochs)
         weights[1:] = np.exp(-np.cumsum(scaled_intervals[:-1]))
         weights *= -np.expm1(-scaled_intervals)
         return 4 * np.sum(sizes * weights)
+
+    def t2(self):
+        """
+        Compute the average branch length for a pair of samples.
+
+        Note: Proportional to pi.
+        """
+        decay = np.zeros(self.num_epochs)
+        contributions = np.zeros(self.num_epochs)
+        for i in range(self.num_epochs):
+            n = self.sizes[i]
+            t_i = self.times[i]
+            try:
+                t_ip1 = self.times[i + 1]
+            except IndexError:
+                t_ip1 = np.inf
+            r = self.rates[i]
+            if r is None or r == 0.0:
+                decay[i] = (t_ip1 - t_i) / (2 * n)
+                contributions[i] = -2 * n * (np.expm1(-(t_ip1 - t_i) / (2 * n)))
+            else:
+                decay[i] = (np.exp(r * t_ip1) - np.exp(r * t_i)) / (2 * n * r)
+                contributions[i] = (
+                    np.exp(1 / (2 * n * r))
+                    / r
+                    * (
+                        exp1(1 / (2 * n * r))
+                        - exp1(np.exp(r * (t_ip1 - t_i)) / (2 * n * r))
+                    )
+                )
+        cum_decay = np.zeros(self.num_epochs)
+        cum_decay[1:] = np.cumsum(decay[:-1])
+        return 2 * np.sum(np.exp(-cum_decay) * contributions)
 
 
 def scaled_demographic_events(filename):
