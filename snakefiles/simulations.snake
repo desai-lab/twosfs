@@ -44,7 +44,9 @@ TS = [f'{t:.1f}' for t in [0.5, 1.0, 2.0]]
 
 rule expgrowth:
     input:
-        expand(['simulations/msprime/expgrowth-g={g}-t={t}.npz'], g=GS, t=TS)
+        expand(['simulations/msprime/expgrowth-g={g}-t={t}.npz',
+                "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
+                ], g=GS, t=TS, model=['3Epoch'])
 
 rule simulations:
     group: 'cleanup'
