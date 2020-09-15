@@ -42,6 +42,10 @@ ALPHAS = [f'{a:.2f}' for a in np.arange(1 + d_alpha, 2.0, d_alpha)]
 GS = [f'{g:.1f}' for g in [0.5, 1.0, 2.0]]
 TS = [f'{t:.1f}' for t in [0.5, 1.0, 2.0]]
 
+rule expgrowth:
+    input:
+        expand(['simulations/msprime/expgrowth-g={g}-t={t}.npz'], g=GS, t=TS)
+
 rule simulations:
     group: 'cleanup'
     input:
@@ -66,7 +70,10 @@ rule msprime:
         parameters['random_seed'] = filename2seed(output[0])
         sims = msprime.simulate(**parameters)
         spectra = spectra_from_TreeSequences(sims,
-                                             parameters['sample_size'])
+                                             parameters['sample_size'],
+                                             parameters['length'],
+                                             parameters['recombination_rate'])
+        spectra.save(output[0])
 
 rule msprime_from_fastNeutrino:
     input:
