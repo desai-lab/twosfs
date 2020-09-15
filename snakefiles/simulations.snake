@@ -46,6 +46,7 @@ rule expgrowth:
     input:
         expand(['simulations/msprime/expgrowth-g={g}-t={t}.npz',
                 "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
+                "simulations/msprime/fastNeutrino.expgrowth-g={g}-t={t}.{model}.npz",
                 ], g=GS, t=TS, model=['3Epoch'])
 
 rule simulations:
