@@ -3,7 +3,7 @@ import numpy as np
 import msprime
 from twosfs import spectra_from_TreeSequences, load_spectra, avg_spectra
 from twosfs.simulations import beta_timescale, filename2seed
-from twosfs.demographicmodel import scaled_demographic_events
+from twosfs.demographicmodel import scaled_demographic_events, DemographicModel
 
 def parameter_map(prefix):
     """Convert a file prefix to a set of msprime parameters."""
@@ -26,7 +26,7 @@ def parameter_map(prefix):
     elif prefix.startswith('expgrowth'):
         p = {elem.split("=")[0] : float(elem.split("=")[1]) for elem in prefix.split('-')[1:]}
         g = p["g"]
-        t = t["t"]
+        t = p["t"]
         dm = DemographicModel()
         dm.add_epoch(0.0, 1.0, g)
         dm.add_epoch(t, np.exp(-g*t))
@@ -39,8 +39,8 @@ def parameter_map(prefix):
 
 d_alpha = 0.05
 ALPHAS = [f'{a:.2f}' for a in np.arange(1 + d_alpha, 2.0, d_alpha)]
-GS = [0.5, 1.0, 2.0]
-TS = [0.5, 1.0, 2.0]
+GS = [f'{g:.1f}' for g in [0.5, 1.0, 2.0]]
+TS = [f'{t:.1f}' for t in [0.5, 1.0, 2.0]]
 
 rule simulations:
     group: 'cleanup'
