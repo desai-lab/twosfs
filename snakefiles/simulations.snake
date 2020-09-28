@@ -60,6 +60,31 @@ rule simulations:
     shell:
         'tar -czf {output} {input}'
 
+rule simulate_models:
+    input:
+        expand([
+                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz',
+                "simulations/msprime/fastNeutrino.expgrowth-g={g}-t={t}.{model}.npz",
+                ],
+                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
+
+rule fit_models:
+    input:
+        expand([
+                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
+                "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
+                ],
+                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
+
+rule initial_simulations:
+    input:
+        'simulations/msprime/kingman.npz',
+        expand([
+                'simulations/msprime/xibeta-alpha={alpha}.npz',
+                'simulations/msprime/expgrowth-g={g}-t={t}.npz',
+                ],
+                alpha=ALPHAS, g=GS, t=TS)
+
 ruleorder: msprime_from_fastNeutrino > msprime
 
 rule msprime:
