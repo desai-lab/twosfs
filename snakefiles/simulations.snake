@@ -23,6 +23,15 @@ def parameter_map(prefix):
         r = default_parameters['recombination_rate'] / beta_timescale(alpha)
         parameters = {'model': msprime.BetaCoalescent(alpha=alpha),
                       'recombination_rate':r}
+    elif prefix.startswith('expgrowth'):
+        p = {elem.split("=")[0] : float(elem.split("=")[1]) for elem in prefix.split('-')[1:]}
+        g = p["g"]
+        t = t["t"]
+        dm = DemographicModel()
+        dm.add_epoch(0.0, 1.0, g)
+        dm.add_epoch(t, np.exp(-g*t))
+        dm.rescale()
+        parameters = {'demographic_events': dm.get_demographic_events()}
     else:
         raise KeyError('Simulation prefix not found')
     return dict(default_parameters, **parameters)
@@ -30,15 +39,18 @@ def parameter_map(prefix):
 
 d_alpha = 0.05
 ALPHAS = [f'{a:.2f}' for a in np.arange(1 + d_alpha, 2.0, d_alpha)]
+GS = [0.5, 1.0, 2.0]
+TS = [0.5, 1.0, 2.0]
 
 rule simulations:
     group: 'cleanup'
     input:
         'simulations/msprime/kingman.npz',
         expand(['simulations/msprime/xibeta-alpha={alpha}.npz',
+                'simulations/msprime/expgrowth-g={g}-t={t}.npz',
                 'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
                 'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz'],
-                alpha=ALPHAS, model=['3Epoch'])
+                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
     output:
         'simulations.tgz'
     shell:

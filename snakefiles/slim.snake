@@ -1,37 +1,36 @@
 import numpy as np
 import msprime
-from slim.sfs_slim import get_sfs
-
-rule fastNeutrino:
-    input:
-        datafile = "{path}/{prefix}.sfs.txt",
-        modelfile = "twosfs/models/{model}.txt"
-    output:
-        "{path}/fastNeutrino/{prefix}.{model}.txt"
-    log:
-        "log/fastNeutrino.{prefix}.{model}.log"
-    shell:
-        "fastNeutrino --maxB 20 --maxRandomRestarts 100 "
-        "--modelFile {input.modelfile} "
-        "--inferredModelOutputFile {output} "
-        "< {input.datafile} "
-        "> {log}"
-
-
+from slim.sfs_slim import get_tseq
 
 rule run_SLiM:
     output:
-        '{path}/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
+        'simulations/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
     params:
         time = 30,
         mem = 1000,
     shell:
          "./../build/slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s}/100 -d gamma={wildcards.g}*1e-8 slim/slim_sim.txt"
 
+ruleorder: spec_slim > msprime
+
+rule spec_slim:
+    output:
+        'simulations/spectra/gamma_{g}_mu_{mu}_s_{s}.rep{rep}.npz'
+    input:
+        'simulations/gamma_{g}_mu_{mu}_s_{s}_run_{rep}.trees'
+    params:
+        mem = 100,
+        time = 20
+    run:
+        sample_size = 100
+        length = 100
+        tseq = get_tseq(str(input), sample_size, num_bp=length)
+        spectra = spectra_from_TreeSequences(tseq, sample_size, length=100, recombination_rate=1e-8)
+        spectra.save(output[0])
 
 rule sfs_from_tseq:
     output:
-        '{path}/gamma_{g}_mu_{mu}_s_{s}.sfs.txt'
+        'simulations/gamma_{g}_mu_{mu}_s_{s}.sfs.txt'
     params:
         time = 5,
         mem = 1000,
@@ -50,5 +49,3 @@ rule sfs_from_tseq:
 
             onesfs += afs / num_reps
             twosfs += twoafs / num_reps
-
-

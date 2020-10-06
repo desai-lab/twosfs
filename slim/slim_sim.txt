@@ -1,5 +1,5 @@
 // Script for the SLiM simulations
-// Takes mutation rate (mu), mutation effect size (s), and 
+// Takes mutation rate (mu), mutation effect size (s), and
 // recombination rate (gamma) as command line arguments
 
 
@@ -22,5 +22,3 @@ initialize() {
 	sim.treeSeqOutput(fname);
         sim.simulationFinished();
 }
-
-
