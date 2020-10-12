@@ -9,18 +9,19 @@ rule run_SLiM:
         time = 30,
         mem = 1000,
     shell:
-         "./../build/slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s}/100 -d gamma={wildcards.g}*1e-8 slim/slim_sim.txt"
+         "slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s}/100 -d gamma={wildcards.g}*1e-8 slim/slim_sim.txt"
 
-ruleorder: spec_slim > msprime
+ruleorder: spectra_from_slim > msprime
+ruleorder: msprime_from_fastNeutrino > spectra_from_slim
 
-rule spec_slim:
+rule spectra_from_slim:
     output:
         'simulations/spectra/gamma_{g}_mu_{mu}_s_{s}.rep{rep}.npz'
     input:
         'simulations/gamma_{g}_mu_{mu}_s_{s}_run_{rep}.trees'
     params:
         mem = 100,
-        time = 20
+        time = 10
     run:
         sample_size = 100
         length = 100
@@ -28,24 +29,3 @@ rule spec_slim:
         spectra = spectra_from_TreeSequences(tseq, sample_size, length=100, recombination_rate=1e-8)
         spectra.save(output[0])
 
-rule sfs_from_tseq:
-    output:
-        'simulations/gamma_{g}_mu_{mu}_s_{s}.sfs.txt'
-    params:
-        time = 5,
-        mem = 1000,
-    run:
-        handle = wildcards.path+'/gamma_'+wildcards.g+'_mu_'+wildcards.mu+'_s_'+wildcards.s
-        sample_size = 100
-        length = 100
-
-        onesfs = np.zeros([sample_size + 1])
-        twosfs = np.zeros([length, sample_size + 1, sample_size + 1])
-
-        num_reps = 10
-        for i in range(num_reps):
-            load_name = handle+'_run_'+str(i+1)+'.trees'
-            afs, twoafs = get_sfs(load_name, sample_size, length)
-
-            onesfs += afs / num_reps
-            twosfs += twoafs / num_reps

@@ -26,12 +26,14 @@ def parameter_map(prefix):
     elif prefix.startswith('expgrowth'):
         p = {elem.split("=")[0] : float(elem.split("=")[1]) for elem in prefix.split('-')[1:]}
         g = p["g"]
-        t = t["t"]
+        t = p["t"]
         dm = DemographicModel()
         dm.add_epoch(0.0, 1.0, g)
         dm.add_epoch(t, np.exp(-g*t))
         dm.rescale()
         parameters = {'demographic_events': dm.get_demographic_events()}
+    elif prefix.startswith('gamma'):
+        parameters = {}
     else:
         raise KeyError('Simulation prefix not found')
     return dict(default_parameters, **parameters)
@@ -56,23 +58,30 @@ rule simulations:
     shell:
         'tar -czf {output} {input}'
 
+
 ruleorder: msprime_from_fastNeutrino > msprime
 
 rule msprime:
     output:
-        temp('simulations/.tmp/{prefix}.rep{rep}.npz')
+        'simulations/spectra/{prefix}.rep{rep}.npz'
     run:
         parameters = parameter_map(wildcards.prefix)
         parameters['random_seed'] = filename2seed(output[0])
         sims = msprime.simulate(**parameters)
         spectra = spectra_from_TreeSequences(sims,
-                                             parameters['sample_size'])
+                                             parameters['sample_size'],
+                                             parameters['length'],
+                                             parameters['recombination_rate'])
+        spectra.save(output[0])
 
 rule msprime_from_fastNeutrino:
     input:
         "simulations/fastNeutrino/{prefix}.txt"
     output:
-        temp('simulations/.tmp/fastNeutrino.{prefix}.rep{rep}.npz')
+        'simulations/spectra/fastNeutrino.{prefix}.npz'
+    params:
+        time = 10,
+        mem = 1000
     run:
         if wildcards.prefix == 'test':
             parameters = parameter_map('test')
@@ -89,11 +98,14 @@ rule msprime_from_fastNeutrino:
         spectra.save(output[0])
 
 rule average_runs:
-    group: 'cleanup'
+    # group: 'cleanup'
     output:
         'simulations/msprime/{prefix}.npz'
+    params:
+        time = 20,
+        mem = 1000
     input:
-        expand('simulations/.tmp/{prefix}.rep{rep}.npz', rep=range(10), allow_missing=True)
+        expand('simulations/spectra/{prefix}.rep{rep}.npz', rep=range(100), allow_missing=True)
     run:
         data = [load_spectra(infn) for infn in input]
         avg = avg_spectra(data)
@@ -105,6 +117,9 @@ rule fastNeutrino:
         modelfile = "twosfs/models/{model}.txt"
     output:
         "simulations/fastNeutrino/{prefix}.{model}.txt"
+    params:
+        time = 10,
+        mem = 1000
     log:
         "log/fastNeutrino.{prefix}.{model}.log"
     shell:
@@ -119,6 +134,9 @@ rule fastNeutrinoInput:
         simulation_file = 'simulations/msprime/{prefix}.npz'
     output:
         sfs_file = temp("simulations/.tmp/{prefix}.sfs.txt")
+    params:
+        time = 10,
+        mem = 1000
     run:
         spectra = load_spectra(input.simulation_file)
         spectra.export_to_fastNeutrino(output.sfs_file)
