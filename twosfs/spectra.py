@@ -1,119 +1,221 @@
 """Class and functions for manipulating SFS and 2SFS."""
 
+
+import attr
+import attr.validators as v
 import numpy as np
 
+# Converters
 
-class Spectra:
-    """Stores and manipulates SFS and 2SFS as numpy arrays.
+
+def _float_array(value) -> np.ndarray:
+    return np.array(value, dtype=float)
+
+
+# Validators
+
+
+def _nonnegative(instance, attribute, value):
+    if np.any(value < 0):
+        raise ValueError(f"{attribute.name} must be nonnegative.")
+
+
+def _strictly_increasing(instance, attribute, value):
+    if not np.all(np.diff(value) > 0):
+        raise ValueError(f"{attribute.name} must be strictly increasing.")
+
+
+def _1D(instance, attribute, value):
+    if value.ndim != 1:
+        raise ValueError(f"{attribute.name} must be a 1D array.")
+
+
+def _3D(instance, attribute, value):
+    if value.ndim != 3:
+        raise ValueError(f"{attribute.name} must be a 3D array.")
+
+
+def _matches_num_samples(instance, attribute, value):
+    if value.shape[-1] != instance.num_samples + 1:
+        raise ValueError(
+            f"Last dimension of {attribute.name} must equal num_samples + 1."
+        )
+
+
+def _matches_windows(instance, attribute, value):
+    if value.shape[0] != len(instance.windows):
+        raise ValueError(
+            f"First dimension of {attribute.name} must equal len(windows)."
+        )
+
+
+def _last_dims_square(instance, attribute, value):
+    if value.shape[-1] != value.shape[-2]:
+        raise ValueError(f"Last two dimensions of {attribute.name} must be equal.")
+
+
+def _zero_if_num_sites(instance, attribute, value):
+    if instance.num_sites == 0 and np.any(value > 0):
+        raise ValueError(
+            f"If num_sites == 0, {attribute.name} must only contain zeros."
+        )
+
+
+def _zero_if_num_pairs(instance, attribute, value):
+    if any((n == 0) & np.any(x > 0) for n, x in zip(instance.num_pairs, value)):
+        raise ValueError(
+            f"If num_pairs == 0, {attribute.name} must only contain zeros."
+        )
+
+
+@attr.s(frozen=True, eq=False)
+class Spectra(object):
+    """
+    Stores SFS and 2SFS data.
 
     Attributes
     ----------
-    sample_size: int
-        The number of haploids genomes sampled.
-    length: int
-        The maximum distance for which there is a twosfs
-    sfs : ndarray
-        1D array containing the site frequency spectrum.
-        `sfs.shape == (sample_size+1,)`.
-        'sfs[i]` is expected number of i-ton mutations.
-    twosfs : ndarray
-        3D array containing the 2-SFS for distances {0, ..., length-1}
-        `twosfs.shape == (length, sample_size+1, sample_size+1)`
-    t2 : float
-        The average branch length separating two individuals.
-    normalized : bool
-        If `normalized` is True, `sfs` and each entry of `twosfs` sum to 1.
-    folded : bool
-        `folded` is True if `sfs` and `twosfs` represent minor allele frequencies.
+    num_samples : int
+        The sample size (i.e. number of haploid genomes.)
+    windows : ndarray
+        The left boundaries of the windows for computing the 2SFS
     recombination_rate : float
-        The per-site recombination rate.
+       The per-site recombination rate.
+    num_sites : float
+        The number of sites contributing to the SFS
+    num_pairs : ndarray
+        The number of pairs of sites contributing to the 2SFS
+    sfs : ndarray
+       1D array containing the site frequency spectrum for sample size n
+       `sfs.shape == (n+1,)` and `sfs[i]` is expected number of i-ton mutations.
+    twosfs : ndarray
+       3D array containing the 2-SFS for each of l windows
+       `twosfs.shape == (l, n+1, n+1)`
     """
 
-    def __init__(
-        self,
-        sfs,
-        twosfs,
-        t2: float = None,
-        normalized: bool = False,
-        folded: bool = False,
-        recombination_rate: float = 0.0,
-    ):
-        """__init__.
+    # attr constructor
+    num_samples: int = attr.ib(validator=[v.instance_of(int), _nonnegative])
+    windows: np.ndarray = attr.ib(
+        converter=_float_array, validator=[_1D, _nonnegative, _strictly_increasing]
+    )
+    recombination_rate: float = attr.ib(
+        converter=float, validator=[v.instance_of(float), _nonnegative]
+    )
+    num_sites: float = attr.ib(converter=float, validator=[_nonnegative])
+    num_pairs: np.ndarray = attr.ib(
+        converter=_float_array, validator=[_1D, _matches_windows, _nonnegative]
+    )
+    onesfs: np.ndarray = attr.ib(
+        converter=_float_array,
+        validator=[_1D, _matches_num_samples, _nonnegative, _zero_if_num_sites],
+    )
+    twosfs: np.ndarray = attr.ib(
+        converter=_float_array,
+        validator=[
+            _3D,
+            _matches_windows,
+            _matches_num_samples,
+            _last_dims_square,
+            _nonnegative,
+            _zero_if_num_pairs,
+        ],
+    )
+
+    def __eq__(self, other) -> bool:
+        """Equality is equality of elements."""
+        if type(self) is not type(other):
+            return NotImplemented
+        return all(
+            np.all(getattr(self, field.name) == getattr(other, field.name))
+            for field in attr.fields(type(self))
+        )
+
+    def close(self, other) -> bool:
+        """Equality is equality of elements."""
+        if type(self) is not type(other):
+            return NotImplemented
+        return all(
+            np.allclose(getattr(self, field.name), getattr(other, field.name))
+            for field in attr.fields(type(self))
+        )
+
+    def compatible(self, other: "Spectra") -> bool:
+        """
+        Determine whether spectra are compatible for addition.
+
+        Compatible spectra have the same:
+        - num_samples
+        - windows
+        - recombination rate.
+        """
+        return (
+            self.num_samples == other.num_samples
+            and self.windows.shape == other.windows.shape
+            and np.all(self.windows == other.windows)
+            and self.recombination_rate == other.recombination_rate
+        )
+
+    def __add__(self, other) -> "Spectra":
+        """Adding spectra adds extensive fields and preserves intensive ones."""
+        if other == 0:
+            # Lift numerical zero to zero_spectra. (For sum function to work.)
+            return self.__add__(zero_spectra_like(self))
+        elif type(self) is not type(other):
+            return NotImplemented
+        if not self.compatible(other):
+            raise ValueError("Can not add incompatible spectra.")
+        return Spectra(
+            self.num_samples,
+            self.windows,
+            self.recombination_rate,
+            self.num_sites + other.num_sites,
+            self.num_pairs + other.num_pairs,
+            self.onesfs + other.onesfs,
+            self.twosfs + other.twosfs,
+        )
+
+    def __radd__(self, other) -> "Spectra":
+        """Addition of spectra is commutative."""
+        return self.__add__(other)
+
+    def normalized_onesfs(self, folded=False) -> np.ndarray:
+        """Return the SFS normalized to one."""
+        normed = self.onesfs / np.sum(self.onesfs)
+        if folded:
+            return foldonesfs(normed)
+        else:
+            return normed
+
+    def normalized_twosfs(self, folded=False) -> np.ndarray:
+        """Return the 2SFS normalized to one in each window."""
+        normed = self.twosfs / np.sum(self.twosfs, axis=(1, 2))[:, None, None]
+        if folded:
+            return foldtwosfs(normed)
+        else:
+            return normed
+
+    def t2(self) -> float:
+        """Return the pairwise coalescence time (proportional to Tajima's pi)."""
+        return t2(self.onesfs / self.num_sites)
+
+    def export_to_fastNeutrino(
+        self, filename: str, sfs_0: float = 100.0, folded: bool = False
+    ) -> None:
+        """Write SFS as a fastNeutrino input file.
 
         Parameters
         ----------
-        sfs : ndarray
-            1D array containing the site frequency spectrum for sample size n
-            `sfs.shape == (n+1,)` and `sfs[i]` is expected number of i-ton mutations.
-        twosfs :
-            3D array containing the 2-SFS for distances {0,..., l-1}
-            `twosfs.shape == (l, n+1, n+1)`
-        t2 : float, optional
-            The average branch length separating two individuals.
-        normalized : bool, optional
-            If `normalized` is True, `sfs` and each entry of `twosfs` must sum to 1.
-            (default: False)
-        folded : bool, optional
-            `folded` is True if `sfs` and `twosfs` represent minor allele frequencies.
-            (default: False)
-        recombination_rate : float, optional.
-            The per-site recombination rate (default: 0.0).
+        filename : str
+            The name of the fastNeutrino input file to write.
+        sfs_0 : int
+            The number in the zero-class. This does not effect fitting.
+            (Default=100).
+        folded : bool
+            If True, fold the sfs before exporting.
         """
-        self.sfs = sfs.copy()
-        self.twosfs = twosfs.copy()
-        self.sample_size = len(sfs) - 1
-        self.length = twosfs.shape[0]
-        self._check_dimensions()
-        self.normalized = normalized
-        self.t2 = self._compute_t2(t2, normalized)
-        self.folded = folded
-        if self.folded:
-            self._check_folded()
-        self.recombination_rate = recombination_rate
-
-    def _check_dimensions(self):
-        if self.sfs.shape != (self.sample_size + 1,):
-            raise ValueError("sfs must have shape (n + 1,)")
-        if self.twosfs.shape != (
-            self.length,
-            self.sample_size + 1,
-            self.sample_size + 1,
-        ):
-            raise ValueError("twosfs must have shape (length, n + 1, n + 1)")
-
-    def _compute_t2(self, t2, normalized):
-        if normalized:
-            if t2 is None:
-                raise ValueError("If normalized is True, you must specify t2.")
-            if np.sum(self.sfs) != 1.0:
-                raise ValueError("If normalized is True, sfs must sum to one.")
-            if not np.allclose(np.sum(self.twosfs, axis=(1, 2)), 1.0):
-                raise ValueError(
-                    "If normalized is True, each entry of twosfs must sum to one."
-                )
-            return t2
-        else:
-            if t2 is not None:
-                raise ValueError("If normalized is False, you may not specify t2.")
-            return sfs2pi(self.sfs)
-
-    def _check_folded(self):
-        high_freq = self.sample_size // 2 + 1
-        sfs_folded = np.allclose(self.sfs[high_freq:], 0.0)
-        twosfs_folded = np.allclose(self.twosfs[:, high_freq:, high_freq:], 0.0)
-        if not (sfs_folded and twosfs_folded):
-            raise ValueError(
-                "If folded is True, the spectra must have zero entries for k>=n//2+1."
-            )
-
-    def __eq__(self, other):
-        """Return True if all attributes are equal."""
-        if isinstance(other, self.__class__):
-            return all(
-                np.all(self.__dict__[k] == other.__dict__[k]) for k in self.__dict__
-            )
-        else:
-            return NotImplemented
+        export_to_fastNeutrino(
+            filename, self.normalized_onesfs(folded=folded), sfs_0=sfs_0
+        )
 
     def save(self, output_file) -> None:
         """Save Spectra to a .npz file.
@@ -125,128 +227,70 @@ class Spectra:
         """
         np.savez_compressed(output_file, **self.__dict__)
 
-    def export_to_fastNeutrino(self, filename: str, sfs_0: float = 100.0) -> None:
-        """Write SFS as a fastNeutrino input file.
 
-        Parameters
-        ----------
-        filename : str
-            The name of the fastNeutrino input file to write.
-        sfs_0 : int
-            The number in the zero-class. This does not effect fitting.
-            (Default=100).
-        """
-        export_to_fastNeutrino(filename, self.sfs, sfs_0=sfs_0)
-
-    def normalize(self) -> None:
-        """Normalize the SFS and 2SFS to sum to one."""
-        self.sfs /= np.sum(self.sfs)
-        self.twosfs /= np.sum(self.twosfs, axis=(1, 2))[:, None, None]
-        self.normalized = True
-
-    def fold(self) -> None:
-        """Fold the SFS and 2SFS so they represent minor allele frequencies."""
-        n_fold = (self.sample_size + 1) // 2
-        self.sfs[:n_fold] += self.sfs[: -(n_fold + 1) : -1]
-        self.sfs[-n_fold:] = 0.0
-        self.twosfs[:, :n_fold, :] += self.twosfs[:, : -(n_fold + 1) : -1, :]
-        self.twosfs[:, :, :n_fold] += self.twosfs[:, :, : -(n_fold + 1) : -1]
-        self.twosfs[:, -n_fold:, :] = 0.0
-        self.twosfs[:, :, -n_fold:] = 0.0
-        self.folded = True
-
-    def lumped_sfs(self, kmax: int):
-        """Return a lumped SFS where the last entry is the sum of sites >=kmax."""
-        return lump_sfs(self.sfs, kmax=kmax)
-
-    def lumped_twosfs(self, kmax: int):
-        """Return a lumped 2SFS where the last entry is the sum of sites >=kmax."""
-        return lump_twosfs(self.twosfs, kmax=kmax)
+# Spectra constructors
 
 
-def spectra_from_TreeSequences(
-    treeseqs, sample_size: int, length: int, recombination_rate: float
-):
-    """Create a Spectra object from a list of tskit.TreeSequences.
-
-    Parameters
-    ----------
-    treeseqs :
-        The list of TreeSequences.
-    sample_size : int
-        The sample size.
-    length : int
-        The length of sequence to calculate 2SFS for.
-    recombination_rate : float
-        The recombination rate of the sequences.
-    """
-    sfs, twosfs = sims2sfs(treeseqs, sample_size, length)
-    return Spectra(sfs, twosfs, recombination_rate=recombination_rate, normalized=False)
+def load_spectra(input_file):
+    """Read a Spectra object from a .npz file created by Spectra.save()."""
+    with np.load(input_file) as data:
+        kws = dict(data)
+    kws["num_samples"] = int(kws["num_samples"])
+    return Spectra(**kws)
 
 
-# TODO: move to simulations
-def sims2sfs(sims, sample_size, length):
-    """Compute the SFS and 2SFS from msprime simulation output.
-
-    Parameters
-    ----------
-    sims :
-        msprime simulation output (a generator of tree sequences)
-    sample_size :
-        the sample size of the simulation
-    length :
-        the length of the simulated sequence (in basepairs)
-
-    Returns
-    -------
-    onesfs : ndarray
-        1D array containing average branch lengths.
-        `onesfs[j]` is the length subtending `j` samples.
-    twosfs : ndarray
-        3D array containing the products of the branch lengths.
-        `twosfs[i,j,k]` is the average of the product of the
-        length subtending `j` samples at position `0` and the
-        length subtending `k` samples at position `i`.
-    """
-    windows = np.arange(length + 1)
-    onesfs = np.zeros((sample_size + 1))
-    twosfs = np.zeros((length, sample_size + 1, sample_size + 1))
-    n_sims = 0
-    for tseq in sims:
-        afs = tseq.allele_frequency_spectrum(
-            mode="branch", windows=windows, polarised=True
-        )
-        onesfs += np.mean(afs, axis=0)
-        twosfs += afs[0, :, None] * afs[:, None, :]
-        n_sims += 1
-    return onesfs / n_sims, twosfs / n_sims
+def zero_spectra(num_samples: int, windows, recombination_rate: float) -> Spectra:
+    """Construct an empty Spectra object."""
+    return Spectra(
+        num_samples,
+        windows,
+        recombination_rate,
+        0,
+        np.zeros_like(windows),
+        np.zeros(num_samples + 1),
+        np.zeros((len(windows), num_samples + 1, num_samples + 1)),
+    )
 
 
-# TODO: move to simulations.py
-def sims2pi(sims, num_replicates):
-    """Compute pairwise diversity (T_2) for a generator of tree sequences."""
-    pi = sum(tseq.diversity(mode="branch") for tseq in sims)
-    pi /= num_replicates
-    return pi
+def zero_spectra_like(spectra: Spectra) -> Spectra:
+    """Construct an empty Spectra object that is compatible with spectra."""
+    return zero_spectra(
+        spectra.num_samples, spectra.windows, spectra.recombination_rate
+    )
 
 
-def sfs2pi(sfs):
-    """Compute the average pairwise diversity from an SFS."""
-    n = len(sfs) - 1
-    k = np.arange(n + 1)
-    weights = 2 * k * (n - k) / (n * (n - 1))
-    return np.dot(sfs, weights)
+# Functions of arrays.
 
 
-def lump_sfs(sfs, kmax):
+def foldonesfs(onesfs: np.ndarray) -> np.ndarray:
+    """Fold the SFS so that it represents minor allele frequencies."""
+    n_fold = len(onesfs) // 2
+    folded = np.zeros_like(onesfs)
+    folded[:-n_fold] = onesfs[:-n_fold]
+    folded[:n_fold] += onesfs[: -(n_fold + 1) : -1]
+    return folded
+
+
+def foldtwosfs(twosfs: np.ndarray) -> np.ndarray:
+    """Fold the 2SFS so that it represents minor allele frequencies."""
+    n_fold = twosfs.shape[-1] // 2
+    folded = np.zeros_like(twosfs)
+    folded[:, :-n_fold, :-n_fold] = twosfs[:, :-n_fold, :-n_fold]
+    folded[:, :-n_fold, :n_fold] += twosfs[:, :-n_fold, : -(n_fold + 1) : -1]
+    folded[:, :n_fold, :-n_fold] += twosfs[:, : -(n_fold + 1) : -1, :-n_fold]
+    folded[:, :n_fold, :n_fold] += twosfs[:, : -(n_fold + 1) : -1, : -(n_fold + 1) : -1]
+    return folded
+
+
+def lump_onesfs(onesfs: np.ndarray, kmax: int) -> np.ndarray:
     """Lump all sfs bins for k>=kmax into one bin."""
-    sfs_lumped = np.zeros(kmax + 1)
-    sfs_lumped[:-1] = sfs[:kmax]
-    sfs_lumped[-1] = np.sum(sfs[kmax:])
-    return sfs_lumped
+    onesfs_lumped = np.zeros(kmax + 1)
+    onesfs_lumped[:-1] = onesfs[:kmax]
+    onesfs_lumped[-1] = np.sum(onesfs[kmax:])
+    return onesfs_lumped
 
 
-def lump_twosfs(twosfs, kmax):
+def lump_twosfs(twosfs: np.ndarray, kmax: int) -> np.ndarray:
     """Lump all 2-sfs bins for k>=kmax into one bin."""
     twosfs_lumped = np.zeros((twosfs.shape[0], kmax + 1, kmax + 1))
     twosfs_lumped[:, :-1, :-1] = twosfs[:, :kmax, :kmax]
@@ -256,30 +300,12 @@ def lump_twosfs(twosfs, kmax):
     return twosfs_lumped
 
 
-def load_spectra(input_file):
-    """Read a Spectra object from a .npz file created by Spectra.save()."""
-    data = np.load(input_file)
-    sfs = data["sfs"]
-    twosfs = data["twosfs"]
-    kwargs = {k: data[k] for k in ["t2", "normalized", "folded", "recombination_rate"]}
-    if not kwargs["normalized"]:
-        kwargs.pop("t2")
-    spectra = Spectra(sfs, twosfs, **kwargs)
-    return spectra
-
-
-def avg_spectra(spectra_list):
-    """Average a list of compatible spectra."""
-    if any(s.normalized for s in spectra_list):
-        raise ValueError("You may not average normalized spectra.")
-    r = spectra_list[0].recombination_rate
-    if not np.allclose([s.recombination_rate for s in spectra_list], r):
-        raise ValueError(
-            "You may not average spectra with different recombination rates."
-        )
-    sfs = sum(s.sfs for s in spectra_list) / len(spectra_list)
-    twosfs = sum(s.twosfs for s in spectra_list) / len(spectra_list)
-    return Spectra(sfs, twosfs, normalized=False, recombination_rate=r)
+def t2(onesfs: np.ndarray) -> float:
+    """Compute the average pairwise diversity from an SFS."""
+    n = len(onesfs) - 1
+    k = np.arange(n + 1)
+    weights = 2 * k * (n - k) / (n * (n - 1))
+    return np.dot(onesfs, weights)
 
 
 def export_to_fastNeutrino(filename: str, sfs, sfs_0=100):
@@ -297,7 +323,7 @@ def export_to_fastNeutrino(filename: str, sfs, sfs_0=100):
     """
     n = len(sfs) - 1
     # Normalize sfs to have T_2 = 4.
-    sfs *= 4 / sfs2pi(sfs)
+    sfs *= 4 / t2(sfs)
     sfs[0] = sfs_0
     with open(filename, "w") as outfile:
         outfile.write(f"{n}\t1\n")

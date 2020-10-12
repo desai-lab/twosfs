@@ -1,244 +1,285 @@
 """Tests for the spectra module."""
 
 
+from copy import deepcopy
 from tempfile import NamedTemporaryFile, TemporaryFile
-from unittest import TestCase, main
 
+import hypothesis.extra.numpy as hnp
+import hypothesis.strategies as st
 import numpy as np
+from hypothesis import assume, given
 
-from twosfs import Spectra, avg_spectra, load_spectra, sfs2pi
+from twosfs.spectra import (
+    Spectra,
+    foldonesfs,
+    foldtwosfs,
+    load_spectra,
+    lump_onesfs,
+    lump_twosfs,
+    zero_spectra_like,
+)
 
 
-class TestSpectra(TestCase):
-    """Test the Spectra class."""
+@st.composite
+def onesfss(
+    draw,
+    ints=st.integers(min_value=1, max_value=10),
+    elements=st.floats(min_value=0.0, max_value=1e6),
+    num_samples=None,
+):
+    if num_samples is None:
+        num_samples = draw(ints)
+    return draw(hnp.arrays(dtype=float, shape=(num_samples + 1,), elements=elements))
 
-    def setUp(self):
-        """Set up a sample spectrum and some variables for comparison."""
-        self.sample_size = 10
-        self.length = 5
-        self.recombination_rate = 1.0
-        self.sfs = np.ones(self.sample_size + 1)
-        self.twosfs = np.ones((self.length, self.sample_size + 1, self.sample_size + 1))
-        self.spectra = Spectra(
-            self.sfs, self.twosfs, recombination_rate=self.recombination_rate
+
+@st.composite
+def twosfss(
+    draw,
+    ints=st.integers(min_value=1, max_value=10),
+    elements=st.floats(min_value=0.0, max_value=1e6),
+    num_samples=None,
+    num_windows=None,
+):
+    if num_samples is None:
+        num_samples = draw(ints)
+    if num_windows is None:
+        num_windows = draw(ints)
+    return draw(
+        hnp.arrays(
+            dtype=float,
+            shape=(num_windows, num_samples + 1, num_samples + 1),
+            elements=elements,
         )
+    )
 
-    def test_dimensions(self):
-        """Test that the provided spectra have the correct shape."""
-        self.assertEqual(self.spectra.sample_size, self.sample_size)
-        self.assertEqual(self.spectra.length, self.length)
-        with self.assertRaises(ValueError):
-            Spectra(
-                np.empty((1, self.sample_size + 1)),
-                np.empty((self.length, self.sample_size + 1, self.sample_size + 1)),
-            )
-        with self.assertRaises(ValueError):
-            Spectra(
-                np.empty(self.sample_size + 1),
-                np.empty((self.sample_size + 1, self.sample_size + 1)),
-            )
-        with self.assertRaises(ValueError):
-            Spectra(
-                np.empty(self.sample_size + 1),
-                np.empty((self.length, self.sample_size + 1, self.sample_size + 1, 1)),
-            )
-        with self.assertRaises(ValueError):
-            Spectra(
-                np.empty(self.sample_size + 1),
-                np.empty((self.length, self.sample_size, self.sample_size + 1)),
-            )
-        with self.assertRaises(ValueError):
-            Spectra(
-                np.empty(self.sample_size + 1),
-                np.empty((self.length, self.sample_size, self.sample_size)),
-            )
 
-    def test__init__recombination(self):
-        """Check that the recombination rate defaults to zero and takes value."""
-        self.assertEqual(Spectra(self.sfs, self.twosfs).recombination_rate, 0.0)
-        self.assertEqual(self.spectra.recombination_rate, self.recombination_rate)
-
-    def test___init__normalization(self):
-        """
-        Test the normalization flag of the initializer.
-
-        - Sets t2 to provided value if normalized and t2 provided.
-        - Computes t2 from sfs if not normalized and t2 not provided.
-        - Raises exceptions in other cases.
-        """
-        sfs_normed = self.sfs / np.sum(self.sfs)
-        twosfs_normed = self.twosfs / np.sum(self.twosfs, axis=(1, 2))[:, None, None]
-        # If normalized, set t2
-        self.assertEqual(
-            Spectra(sfs_normed, twosfs_normed, t2=4.5, normalized=True).t2, 4.5
-        )
-        # If not normalized, set t2
-        spectra = Spectra(self.sfs, self.twosfs, normalized=False)
-        self.assertEqual(spectra.t2, sfs2pi(self.sfs))
-        # t2 must be specified if normalized
-        with self.assertRaises(ValueError):
-            Spectra(sfs_normed, twosfs_normed, normalized=True)
-        # t2 must not be specified if not normalized
-        with self.assertRaises(ValueError):
-            Spectra(self.sfs, self.twosfs, t2=1.0, normalized=False)
-        # if normalized, check normalization
-        with self.assertRaises(ValueError):
-            spectra = Spectra(2 * sfs_normed, twosfs_normed, t2=1.0, normalized=True)
-        with self.assertRaises(ValueError):
-            spectra = Spectra(sfs_normed, 2 * twosfs_normed, t2=1.0, normalized=True)
-
-    def test___init__folded(self):
-        """
-        Test that the folded kwarg to init is working properly.
-
-        - Should set the folded attribute
-        - Should raise an exception when given unfolded spectra
-        """
-        n = self.sample_size
-        sfs_folded = np.ones(n + 1)
-        sfs_folded[-(n + 1) // 2 :] = 0.0
-        twosfs_folded = np.ones((self.length, n + 1, n + 1))
-        twosfs_folded[:, -(n + 1) // 2 :, -(n + 1) // 2 :] = 0.0
-        self.assertTrue(Spectra(sfs_folded, twosfs_folded, folded=True).folded)
-        self.assertFalse(Spectra(self.sfs, self.twosfs, folded=False).folded)
-        # Test default unfolded
-        self.assertFalse(Spectra(self.sfs, self.twosfs).folded)
-        with self.assertRaises(ValueError):
-            Spectra(self.sfs, self.twosfs, folded=True)
-
-    def test___eq__(self):
-        """Test the equality relation."""
-        a = Spectra(self.sfs, self.twosfs)
-        b = Spectra(self.sfs.copy(), self.twosfs.copy())
-        self.assertTrue(a == b)
-        b.sfs[1] /= 2
-        self.assertFalse(a == b)
-
-    def test_save_load(self):
-        """Test that saving and loading returns equivalent spectra."""
-        with TemporaryFile() as tf:
-            self.spectra.save(tf)
-            tf.seek(0)
-            loaded_spectra = load_spectra(tf)
-        self.assertTrue(self.spectra == loaded_spectra)
-
-    def test_export_to_fastNeutrino(self):
-        """Test that exporting fastNeutrino output matches expectation."""
-        with NamedTemporaryFile() as tf:
-            self.spectra.export_to_fastNeutrino(tf.name)
-            tf.seek(0)
-            output = tf.read()
-        self.assertEqual(
-            output,
-            b"10\t1\n100.0\n1.0909090909090908\n1.0909090909090908\n1.0909090909090908"
-            b"\n1.0909090909090908\n1.0909090909090908\n1.0909090909090908\n"
-            b"1.0909090909090908\n1.0909090909090908\n1.0909090909090908\n"
-            b"1.0909090909090908\n",
-        )
-
-    def test_normalize(self):
-        """Test that normalizing spectra makes them sum to one."""
-        spectra = Spectra(self.sfs, self.twosfs)
-        self.assertFalse(spectra.normalized)
-        spectra.normalize()
-        self.assertTrue(spectra.normalized)
-        self.assertTrue(np.isclose(np.sum(spectra.sfs), 1))
-        self.assertTrue(np.allclose(np.sum(spectra.twosfs, axis=(1, 2)), 1))
-
-    def test_fold(self):
-        """
-        Testing that folding works properly.
-
-        - Preserves sums
-        - Zeros out high frequencies
-        - Gives correctly folded spectra
-        """
-        self.spectra.fold()
-        self.assertTrue(self.spectra.folded)
-        # Folding preserves sums
-        self.assertEqual(np.sum(self.spectra.sfs), np.sum(self.sfs))
-        self.assertTrue(
-            np.all(
-                np.sum(self.spectra.twosfs, axis=(1, 2))
-                == np.sum(self.twosfs, axis=(1, 2))
+@st.composite
+def kinds(draw, elements=st.integers(min_value=1, max_value=10)):
+    n_samples = draw(elements)
+    windows = sorted(
+        draw(
+            st.lists(
+                st.integers(min_value=0, max_value=int(1e6)),
+                min_size=1,
+                max_size=10,
+                unique=True,
             )
         )
-        # Should zero out high frequencies
-        high_freq = self.sample_size // 2 + 1
-        self.assertTrue(np.allclose(self.spectra.sfs[high_freq:], 0.0))
-        self.assertTrue(
-            np.allclose(self.spectra.twosfs[:, high_freq:, high_freq:], 0.0)
-        )
-        # Test exact values
-        sfs = np.arange(4)
-        twosfs = sfs[None, :, None] + sfs[None, None, :]
-        spectra = Spectra(sfs, twosfs)
-        spectra.fold()
-        self.assertTrue(np.all(spectra.sfs == np.array([3, 3, 0, 0])))
-        self.assertTrue(
-            np.all(
-                spectra.twosfs
-                == np.array(
-                    [[12, 12, 0, 0], [12, 12, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]
-                )
-            )
-        )
-
-    def test_lumped_sfs(self):
-        """Test that lumped sfs preserve values and give the right shape."""
-        kmax = 5
-        lumped_sfs = self.spectra.lumped_sfs(kmax)
-        self.assertEqual(lumped_sfs.shape, (kmax + 1,))
-        self.assertTrue(np.all(self.sfs[: kmax - 1] == lumped_sfs[: kmax - 1]))
-        self.assertEqual(np.sum(self.sfs), np.sum(lumped_sfs))
-
-    def test_lumped_twosfs(self):
-        """Test that lumped twosfs preserve values and give the right shape."""
-        kmax = 5
-        lumped_twosfs = self.spectra.lumped_twosfs(kmax)
-        self.assertEqual(lumped_twosfs.shape, (self.length, kmax + 1, kmax + 1))
-        self.assertTrue(
-            np.all(
-                self.twosfs[:, : kmax - 1, : kmax - 1]
-                == lumped_twosfs[:, : kmax - 1, : kmax - 1]
-            )
-        )
-        self.assertEqual(np.sum(self.twosfs), np.sum(lumped_twosfs))
+    )
+    rec_rate = draw(st.floats(min_value=0.0))
+    return n_samples, windows, rec_rate
 
 
-class TestAvgSpectra(TestCase):
-    """Test the avg_spectra function."""
-
-    def test_avg_spectra(self):
-        """
-        Test that avg_spectra is working properly.
-
-        - Averages the branch length properties of two spectra.
-        - Rejects mismatches in recombination rate.
-        - Rejects normalized spectra.
-        """
-        n = 4
-        length = 2
-        sfs1 = np.ones(n)
-        twosfs1 = np.ones((length, n, n))
-        sfs2 = 2 * sfs1
-        twosfs2 = 2 * twosfs1
-        spectra1 = Spectra(sfs1, twosfs1, recombination_rate=1.0)
-        spectra2 = Spectra(sfs2, twosfs2, recombination_rate=1.0)
-        avg = avg_spectra([spectra1, spectra2])
-        self.assertTrue(np.isclose(avg.t2, (spectra1.t2 + spectra2.t2) / 2))
-        self.assertTrue(np.allclose(avg.sfs, (sfs1 + sfs2) / 2))
-        self.assertTrue(np.allclose(avg.twosfs, (twosfs1 + twosfs2) / 2))
-        # Wrong recombination rate
-        spectra3 = Spectra(sfs2, twosfs2, recombination_rate=2.0)
-        with self.assertRaises(ValueError):
-            avg_spectra([spectra1, spectra3])
-        # Can't average normalized spectra
-        spectra4 = Spectra(sfs2, twosfs2, recombination_rate=1.0)
-        spectra4.normalize()
-        with self.assertRaises(ValueError):
-            avg_spectra([spectra1, spectra4])
+@st.composite
+def spectras_from_kind(
+    draw,
+    kind,
+    elements=st.floats(min_value=0.0, max_value=1e6),
+    integers=st.integers(min_value=0, max_value=int(1e8)),
+):
+    num_samples, windows, rec_rate = kind
+    num_windows = len(windows)
+    num_sites = draw(integers)
+    num_pairs = draw(hnp.arrays(dtype=int, shape=num_windows, elements=integers))
+    if num_sites == 0:
+        onesfs = np.zeros(num_samples + 1)
+    else:
+        onesfs = draw(onesfss(num_samples=num_samples, elements=elements))
+    twosfs = draw(
+        twosfss(num_samples=num_samples, num_windows=num_windows, elements=elements)
+    )
+    for i in range(num_windows):
+        if num_pairs[i] == 0:
+            twosfs[i] = 0
+    return Spectra(num_samples, windows, rec_rate, num_sites, num_pairs, onesfs, twosfs)
 
 
-if __name__ == "__main__":
-    main()
+@st.composite
+def spectras(draw, num=1):
+    kind = draw(kinds())
+    if num == 1:
+        return draw(spectras_from_kind(kind))
+    else:
+        return [draw(spectras_from_kind(kind)) for i in range(num)]
+
+
+@given(kinds())
+def test_kinds(x):
+    assert isinstance(x[0], int)
+    assert isinstance(x[1], list)
+    assert sorted(list(set(x[1]))) == x[1]
+    assert isinstance(x[2], float)
+
+
+@given(spectras())
+def test_spectras(x):
+    assert isinstance(x, Spectra)
+
+
+@given(spectras())
+def test_eq(x):
+    assert deepcopy(x) == x
+
+
+@given(spectras(num=3))
+def test_sum_associates(xs):
+    s1 = xs[0] + (xs[1] + xs[2])
+    s2 = (xs[0] + xs[1]) + xs[2]
+    assert s1.close(s2)
+
+
+@given(spectras())
+def test_sum_identity(x):
+    assert x + zero_spectra_like(x) == x
+    assert x + 0 == x
+    assert 0 + x == x
+
+
+@given(spectras(num=2))
+def test_sum_commutes(xs):
+    assert xs[0] + xs[1] == xs[1] + xs[0]
+
+
+@given(spectras(num=2))
+def test_sum_preserves_intensive(xs):
+    s = xs[0] + xs[1]
+    assert s.compatible(xs[0])
+
+
+@given(spectras())
+def test_sum_extensive(x):
+    s = x + x
+    assert np.all(s.onesfs == 2 * x.onesfs)
+    assert np.all(s.twosfs == 2 * x.twosfs)
+    assert s.num_sites == 2 * x.num_sites
+    assert np.all(s.num_pairs == 2 * x.num_pairs)
+
+
+@given(spectras(num=2))
+def test_sum_function(xs):
+    assert sum(xs) == xs[0] + xs[1]
+
+
+@given(spectras())
+def test_save_load(x):
+    """Test that saving and loading are inverses."""
+    with TemporaryFile() as tf:
+        x.save(tf)
+        tf.seek(0)
+        loaded = load_spectra(tf)
+    assert x == loaded
+
+
+# TODO:
+# - linear
+# - nullspace
+# - image (or cokernel)
+
+
+@given(onesfss())
+def test_foldonesfs_idempotent(x):
+    assert np.all(foldonesfs(foldonesfs(x)) == foldonesfs(x))
+
+
+@given(onesfss())
+def test_foldonesfs_symmetric(x):
+    sym = x + x[::-1]
+    antisym = x - x[::-1]
+    assert np.all(foldonesfs(antisym) == 0)
+    assert np.all(sym == 0) or not np.all(foldonesfs(sym == 0))
+
+
+@given(onesfss())
+def test_foldonesfs_preserves_sum(x):
+    assert np.isclose(np.sum(foldonesfs(x)), np.sum(x))
+
+
+@given(twosfss())
+def test_foldtwosfs_idempotent(x):
+    assert np.all(foldtwosfs(foldtwosfs(x)) == foldtwosfs(x))
+
+
+@given(twosfss())
+def test_foldtwosfs_symmetric(x):
+    assert np.allclose(foldtwosfs(x[:, ::-1, ::-1]), foldtwosfs(x))
+
+
+@given(twosfss())
+def test_foldtwosfs_preserves_sum(x):
+    assert np.allclose(np.sum(foldtwosfs(x), axis=(1, 2)), np.sum(x, axis=(1, 2)))
+
+
+@given(spectras())
+def test_normalized_onesfs_normalized(x):
+    assume(np.sum(x.onesfs) > 0)
+    assert np.isclose(np.sum(x.normalized_onesfs()), 1)
+
+
+@given(spectras())
+def test_normalized_onesfs_preserves_ratios(x):
+    assume(np.sum(x.onesfs) > 0)
+    ratio = x.normalized_onesfs()[np.nonzero(x.onesfs)] / x.onesfs[np.nonzero(x.onesfs)]
+    assert np.allclose(ratio, ratio[0])
+
+
+@given(spectras())
+def test_normalized_twosfs_normalized(x):
+    assume(np.all(np.sum(x.twosfs, axis=(1, 2)) > 0))
+    assert np.allclose(np.sum(x.normalized_twosfs(), axis=(1, 2)), 1)
+
+
+@given(spectras())
+def test_normalized_twosfs_preserves_ratios(x):
+    assume(np.all(np.sum(x.twosfs, axis=(1, 2)) > 0))
+    for normed, unnormed in zip(x.normalized_twosfs(), x.twosfs):
+        ratio = normed[np.nonzero(normed)] / unnormed[np.nonzero(unnormed)]
+        assert np.allclose(ratio, ratio[0])
+
+
+@given(onesfss(), st.integers(min_value=1, max_value=10))
+def test_lump_onesfs_preserves_sums(x, kmax):
+    assume(kmax <= x.shape[-1])
+    assert np.isclose(np.sum(lump_onesfs(x, kmax)), np.sum(x))
+
+
+@given(twosfss(), st.integers(min_value=1, max_value=10))
+def test_lump_twosfs_preserves_sums(x, kmax):
+    assume(kmax <= x.shape[-1])
+    assert np.allclose(
+        np.sum(lump_twosfs(x, kmax), axis=(1, 2)), np.sum(x, axis=(1, 2))
+    )
+
+
+@given(onesfss(), st.integers(min_value=1, max_value=10))
+def test_lumped_onesfs_preserves_initvals(x, kmax):
+    assume(kmax <= x.shape[-1])
+    lumped = lump_onesfs(x, kmax)
+    assert lumped.shape == (kmax + 1,)
+    assert np.all(lumped[:kmax] == x[:kmax])
+
+
+@given(twosfss(), st.integers(min_value=1, max_value=10))
+def test_lumped_twosfs_preserves_initvals(x, kmax):
+    assume(kmax <= x.shape[-1])
+    lumped = lump_twosfs(x, kmax)
+    assert lumped.shape == (
+        x.shape[0],
+        kmax + 1,
+        kmax + 1,
+    )
+    assert np.all(lumped[:, :kmax, :kmax] == x[:, :kmax, :kmax])
+
+
+# def test_export_to_fastNeutrino(self):
+#     """Test that exporting fastNeutrino output matches expectation."""
+#     with NamedTemporaryFile() as tf:
+#         self.spectra.export_to_fastNeutrino(tf.name)
+#         tf.seek(0)
+#         output = tf.read()
+#     self.assertEqual(
+#         output,
+#         b"10\t1\n100.0\n1.0909090909090908\n1.0909090909090908\n1.0909090909090908"
+#         b"\n1.0909090909090908\n1.0909090909090908\n1.0909090909090908\n"
+#         b"1.0909090909090908\n1.0909090909090908\n1.0909090909090908\n"
+#         b"1.0909090909090908\n",
+#     )
