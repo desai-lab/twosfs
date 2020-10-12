@@ -1,0 +1,7 @@
+/n/holyscratch01/desai_lab/efenton/2sfs/slimruns/gamma_2_mu_13_s_5_run_9.trees
+
+/n/holyscratch01/desai_lab/efenton/2sfs/slimruns/sfs_gamma_2_mu_13_s_5.npy
+
+
+
+snakemake simulations/spectra/fastNeutrino.gamma_{1,2,3}_mu_{11,12,13}_s_{5,10,20}.3Epoch.npz --cluster 'sbatch -c 1 -t {params.time} --mem={params.mem}' -j 20
