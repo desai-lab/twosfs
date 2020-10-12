@@ -1,34 +1,31 @@
 import numpy as np
 import msprime
-from slim.sfs_slim import get_sfs
+from slim.sfs_slim import get_tseq
 
 rule run_SLiM:
     output:
-        '{path}/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
+        'simulations/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
     params:
         time = 30,
         mem = 1000,
     shell:
-         "./../build/slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s} -d gamma={wildcards.g}*1e-8 twosfs/slim_sim.txt"
+         "slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s}/100 -d gamma={wildcards.g}*1e-8 slim/slim_sim.txt"
 
+ruleorder: spectra_from_slim > msprime
+ruleorder: msprime_from_fastNeutrino > spectra_from_slim
 
-rule sfs_from_tseq:
+rule spectra_from_slim:
     output:
-        '{path}/sfs_gamma_{g}_mu_{mu}_s_{s}.npy'
+        'simulations/spectra/gamma_{g}_mu_{mu}_s_{s}.rep{rep}.npz'
+    input:
+        'simulations/gamma_{g}_mu_{mu}_s_{s}_run_{rep}.trees'
+    params:
+        mem = 100,
+        time = 10
     run:
-        handle = wildcards.path+'/gamma_'+wildcards.g+'_mu_'+wildcards.mu+'_s_'+wildcards.s
         sample_size = 100
         length = 100
+        tseq = get_tseq(str(input), sample_size, num_bp=length)
+        spectra = spectra_from_TreeSequences(tseq, sample_size, length=100, recombination_rate=1e-8)
+        spectra.save(output[0])
 
-        onesfs = np.zeros([sample_size + 1])
-        twosfs = np.zeros([length, sample_size + 1, sample_size + 1])
-
-        num_reps = 10
-        for i in range(num_reps):
-            fname = handle+'_run_'+str(i+1)+'.trees'
-            afs, twoafs = get_sfs(fname, sample_size, length)
-
-            onesfs += afs / num_reps
-            twosfs += twoafs / num_reps
-
-        print(onesfs)
