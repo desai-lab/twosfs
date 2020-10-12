@@ -13,5 +13,7 @@ dependencies:
   - jupytext>=1.5.0
   - jupyterlab>=2.1
   - nodejs
+  - pytest
   - pip:
       - git+https://github.com/tskit-dev/msprime@b8f5fb60b0ca0885b7f1c2d7ac7a9ae3b95fc543#egg=msprime
+      - pyslim
