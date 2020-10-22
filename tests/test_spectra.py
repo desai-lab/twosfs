@@ -2,7 +2,7 @@
 
 
 from copy import deepcopy
-from tempfile import NamedTemporaryFile, TemporaryFile
+from tempfile import TemporaryFile
 
 import hypothesis.extra.numpy as hnp
 import hypothesis.strategies as st
@@ -78,7 +78,7 @@ def spectras_from_kind(
     integers=st.integers(min_value=0, max_value=int(1e8)),
 ):
     num_samples, windows, rec_rate = kind
-    num_windows = len(windows)
+    num_windows = len(windows) - 1
     num_sites = draw(integers)
     num_pairs = draw(hnp.arrays(dtype=int, shape=num_windows, elements=integers))
     if num_sites == 0:

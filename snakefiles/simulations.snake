@@ -1,7 +1,7 @@
 import numpy as np
 
 import msprime
-from twosfs import spectra_from_TreeSequences, load_spectra, avg_spectra
+from twosfs import spectra_from_TreeSequence, load_spectra
 from twosfs.simulations import beta_timescale, filename2seed
 from twosfs.demographicmodel import scaled_demographic_events, DemographicModel
 
@@ -94,10 +94,11 @@ rule msprime:
         parameters = parameter_map(wildcards.prefix)
         parameters['random_seed'] = filename2seed(output[0])
         sims = msprime.simulate(**parameters)
-        spectra = spectra_from_TreeSequences(sims,
-                                             parameters['sample_size'],
-                                             parameters['length'],
-                                             parameters['recombination_rate'])
+        windows = np.arange(parameters['length'] + 1)
+        spectra = sum(spectra_from_TreeSequence(windows,
+                                                parameters['recombination_rate'],
+                                                tseq)
+                      for tseq in sims)
         spectra.save(output[0])
 
 rule msprime_from_fastNeutrino:
@@ -114,22 +115,22 @@ rule msprime_from_fastNeutrino:
         parameters['demographic_events'] = scaled_demographic_events(input[0])
         parameters['random_seed'] = filename2seed(output[0])
         sims = msprime.simulate(**parameters)
-        spectra = spectra_from_TreeSequences(sims,
-                                             parameters['sample_size'],
-                                             parameters['length'],
-                                             parameters['recombination_rate'])
+        windows = np.arange(parameters['length'] + 1)
+        spectra = sum(spectra_from_TreeSequence(windows,
+                                                parameters['recombination_rate'],
+                                                tseq)
+                      for tseq in sims)
         spectra.save(output[0])
 
-rule average_runs:
+rule add_runs:
     group: 'cleanup'
     output:
         'simulations/msprime/{prefix}.npz'
     input:
         expand('simulations/.tmp/{prefix}.rep{rep}.npz', rep=range(10), allow_missing=True)
     run:
-        data = [load_spectra(infn) for infn in input]
-        avg = avg_spectra(data)
-        avg.save(output[0])
+        total = sum(load_spectra(infn) for infn in input)
+        total.save(output[0])
 
 rule fastNeutrino:
     input:

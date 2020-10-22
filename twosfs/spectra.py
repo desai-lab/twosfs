@@ -4,6 +4,7 @@
 import attr
 import attr.validators as v
 import numpy as np
+import tskit
 
 # Converters
 
@@ -43,9 +44,9 @@ def _matches_num_samples(instance, attribute, value):
 
 
 def _matches_windows(instance, attribute, value):
-    if value.shape[0] != len(instance.windows):
+    if value.shape[0] != len(instance.windows) - 1:
         raise ValueError(
-            f"First dimension of {attribute.name} must equal len(windows)."
+            f"First dimension of {attribute.name} must equal len(windows) - 1."
         )
 
 
@@ -78,7 +79,7 @@ class Spectra(object):
     num_samples : int
         The sample size (i.e. number of haploid genomes.)
     windows : ndarray
-        The left boundaries of the windows for computing the 2SFS
+        The boundaries of the windows for computing the 2SFS
     recombination_rate : float
        The per-site recombination rate.
     num_sites : float
@@ -246,9 +247,9 @@ def zero_spectra(num_samples: int, windows, recombination_rate: float) -> Spectr
         windows,
         recombination_rate,
         0,
-        np.zeros_like(windows),
+        np.zeros(len(windows) - 1),
         np.zeros(num_samples + 1),
-        np.zeros((len(windows), num_samples + 1, num_samples + 1)),
+        np.zeros((len(windows) - 1, num_samples + 1, num_samples + 1)),
     )
 
 
@@ -256,6 +257,21 @@ def zero_spectra_like(spectra: Spectra) -> Spectra:
     """Construct an empty Spectra object that is compatible with spectra."""
     return zero_spectra(
         spectra.num_samples, spectra.windows, spectra.recombination_rate
+    )
+
+
+def spectra_from_TreeSequence(
+    windows, recombination_rate: float, tseq: tskit.TreeSequence
+) -> Spectra:
+    """Construct a Spectra object from a tskit.TreeSeqeunce."""
+    num_samples = tseq.sample_size
+    num_sites = len(windows) - 1
+    num_pairs = np.ones(len(windows) - 1)
+    afs = tseq.allele_frequency_spectrum(mode="branch", windows=windows, polarised=True)
+    onesfs = np.mean(afs, axis=0)
+    twosfs = afs[0, :, None] * afs[:, None, :]
+    return Spectra(
+        num_samples, windows, recombination_rate, num_sites, num_pairs, onesfs, twosfs
     )
 
 
