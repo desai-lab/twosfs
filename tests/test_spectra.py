@@ -1,11 +1,11 @@
 """Tests for the spectra module."""
 
-
 from copy import deepcopy
 from tempfile import TemporaryFile
 
 import hypothesis.extra.numpy as hnp
 import hypothesis.strategies as st
+import msprime
 import numpy as np
 from hypothesis import assume, given
 
@@ -16,6 +16,7 @@ from twosfs.spectra import (
     load_spectra,
     lump_onesfs,
     lump_twosfs,
+    spectra_from_TreeSequence,
     zero_spectra_like,
 )
 
@@ -268,6 +269,29 @@ def test_lumped_twosfs_preserves_initvals(x, kmax):
         kmax + 1,
     )
     assert np.all(lumped[:, :kmax, :kmax] == x[:, :kmax, :kmax])
+
+
+@given(
+    st.integers(min_value=2, max_value=10),
+    st.integers(min_value=1, max_value=2 ** 32 - 1),
+    st.floats(min_value=1.0, max_value=10.0),
+    st.floats(min_value=0.0, max_value=10.0),
+    st.integers(min_value=1, max_value=10),
+    st.integers(min_value=1, max_value=10),
+)
+def test_spectra_from_TreeSequence(
+    sample_size, seed, length, rec_rate, num_windows, num_sims
+):
+    parameters = {
+        "sample_size": sample_size,
+        "random_seed": seed,
+        "length": length,
+        "recombination_rate": rec_rate,
+        "num_replicates": num_sims,
+    }
+    sims = msprime.simulate(**parameters)
+    windows = np.linspace(0, length, num_windows + 1)
+    sum(spectra_from_TreeSequence(windows, rec_rate, tseq) for tseq in sims)
 
 
 # def test_export_to_fastNeutrino(self):
