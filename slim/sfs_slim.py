@@ -1,25 +1,19 @@
 import random
-
 import numpy as np
 import pyslim
 
-
-def get_sfs(f_name, sample_size, length):
+def get_tseq(f_name, sample_size, length=1e8, num_bp=100, num_trees=6, cut=.2):
 
     tseq = pyslim.load(f_name).simplify()
 
-    windows = np.zeros(length + 3)
-    windows[1:-1] = 5e7 - np.floor(length / 2) + np.arange(101)
-    windows[-1] = 1e8
-    samples = [random.sample(range(2000), k=sample_size)]
+    keep_nodes = random.sample(range(2000), sample_size)
+    tseq = tseq.simplify(keep_nodes)
 
-    onesfs = np.zeros([sample_size + 1])
-    twosfs = np.zeros([length, sample_size + 1, sample_size + 1])
+    spacing = (1-2*cut)/num_trees
+    intervals = [[length*(cut+spacing*i), length*(cut+spacing*i)+num_bp] for i in range(num_trees)]
 
-    afs = tseq.allele_frequency_spectrum(
-        sample_sets=samples, mode="branch", polarised=True, windows=windows
-    )[1:-1, :]
-    onesfs += np.mean(afs, axis=0)
-    twosfs += afs[:, None, :] * afs[:, :, None]
+    tseq_array = []
+    for i in range(num_trees):
+        tseq_array.append(tseq.keep_intervals([intervals[i]]).trim())
 
-    return onesfs, twosfs
+    return tseq_array
