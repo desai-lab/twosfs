@@ -4,3 +4,4 @@ simulations/
 log/
 twosfs.egg-info/
 *simulations.tgz
+.hypothesis

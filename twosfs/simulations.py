@@ -51,3 +51,10 @@ def filename2seed(filename: str):
     """
     h = blake2b(filename.encode(), digest_size=4)
     return int.from_bytes(h.digest(), "big")
+
+
+def sims2pi(sims, num_replicates):
+    """Compute pairwise diversity (T_2) for a generator of tree sequences."""
+    pi = sum(tseq.diversity(mode="branch") for tseq in sims)
+    pi /= num_replicates
+    return pi
