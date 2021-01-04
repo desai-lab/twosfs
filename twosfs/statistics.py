@@ -51,3 +51,44 @@ def resample_distance(sampling_dist, comparison_dist, n_obs: int, n_reps: int):
 def rank(value, comparisons):
     """Compute the rank of a value in a list of comparisons."""
     return np.sum(value[:, None] > comparisons[None, :], axis=0)
+
+
+def compare(spectra_data, spectra_fitted, d1, d2, max_k, n_reps):
+    """Compare two 2-SFS by resampling the distance statistic.
+
+    Parameters
+    ----------
+    spectra_data : Spectra
+        The observed spectra.
+    spectra_fitted : Spectra
+        The simulated spectra of the fitted model.
+    d1 : int
+        The distance between pairs of sites in the data.
+    d2 : int
+        The distance between pairs of sites in the fitted model.
+    max_k : int
+        The largest allele frequency to consider.
+    n_reps : int
+        The number of times to resample from the simulated 2-SFS.
+
+    Returns
+    -------
+    D : np.ndarray
+        The observed normalized KS distances as a function of allele frequency.
+    resamples : np.ndarray
+        The observed normalized KS distances for each resample
+
+    """
+    twosfs_data = spectra_data.normalized_twosfs(folded=True)[d1, 1:max_k, 1:max_k]
+    twosfs_fitted = spectra_fitted.normalized_twosfs(folded=True)[d2, 1:max_k, 1:max_k]
+    F_data = conditional_sfs(twosfs_data)
+    F_fitted = conditional_sfs(twosfs_fitted)
+    n_obs = np.sum(spectra_data.twosfs[d1, 1:max_k, 1:max_k], axis=1) / 2
+    D = distance(F_data, F_fitted)
+    resamples = resample_distance(
+        twosfs_fitted,
+        twosfs_fitted,
+        spectra_data.num_pairs[d1],
+        n_reps,
+    )
+    return D * np.sqrt(n_obs), resamples

@@ -1,5 +1,6 @@
 """Class and functions for manipulating SFS and 2SFS."""
 
+from typing import Dict
 
 import attr
 import attr.validators as v
@@ -270,6 +271,51 @@ def spectra_from_TreeSequence(
     afs = tseq.allele_frequency_spectrum(mode="branch", windows=windows, polarised=True)
     onesfs = np.mean(afs, axis=0)
     twosfs = afs[0, :, None] * afs[:, None, :]
+    return Spectra(
+        num_samples, windows, recombination_rate, num_sites, num_pairs, onesfs, twosfs
+    )
+
+
+def spectra_from_sites(
+    num_samples: int,
+    windows: np.ndarray,
+    recombination_rate: float,
+    allele_count_dict: Dict[int, int],
+) -> Spectra:
+    """Create a Spectra from a dictionary of allele counts and positions.
+
+    Parameters
+    ----------
+    num_samples : int
+        The sample size (i.e. number of haploid genomes.)
+    windows : ndarray
+        The boundaries of the windows for computing the 2SFS
+    recombination_rate : float
+       The per-site recombination rate.
+    allele_count_dict : Dict[int, int]
+        A dictionary of `position: allele_count` pairs
+
+    Returns
+    -------
+    Spectra
+
+    """
+    onesfs = np.zeros(num_samples + 1)
+    twosfs = np.zeros((len(windows) - 1, num_samples + 1, num_samples + 1))
+    num_sites = 0
+    num_pairs = np.zeros(len(windows) - 1)
+    for pos, ac1 in allele_count_dict.items():
+        num_sites += 1
+        onesfs[ac1] += 1
+        for i, dist in enumerate(windows[:-1]):
+            for d in range(dist, windows[i + 1]):
+                try:
+                    ac2 = allele_count_dict[pos + d]
+                except KeyError:
+                    continue
+                num_pairs[i] += 1
+                twosfs[i, ac1, ac2] += 1
+                twosfs[i, ac2, ac1] += 1
     return Spectra(
         num_samples, windows, recombination_rate, num_sites, num_pairs, onesfs, twosfs
     )
