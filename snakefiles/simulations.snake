@@ -68,6 +68,14 @@ rule simulate_models:
                 ],
                 alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
 
+rule simulate_models_folded:
+    input:
+        expand([
+                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz',
+                "simulations/msprime/fastNeutrino.expgrowth-g={g}-t={t}.{model}.npz",
+                ],
+                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch.folded'])
+
 rule fit_models:
     input:
         expand([
@@ -75,6 +83,14 @@ rule fit_models:
                 "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
                 ],
                 alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
+
+rule fit_models_folded:
+    input:
+        expand([
+                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
+                "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
+                ],
+                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch.folded'])
 
 rule initial_simulations:
     input:
@@ -142,6 +158,22 @@ rule fastNeutrino:
         "log/fastNeutrino.{prefix}.{model}.log"
     shell:
         "fastNeutrino --maxB 20 --maxRandomRestarts 100 "
+        "--modelFile {input.modelfile} "
+        "--inferredModelOutputFile {output} "
+        "< {input.datafile} "
+        "> {log}"
+
+rule fastNeutrino_folded:
+    input:
+        datafile = "simulations/.tmp/{prefix}.sfs.txt",
+        modelfile = "twosfs/models/{model}.txt"
+    output:
+        "simulations/fastNeutrino/{prefix}.{model}.folded.txt"
+    log:
+        "log/fastNeutrino.{prefix}.{model}.log"
+    shell:
+        "fastNeutrino --maxB 20 --maxRandomRestarts 100 "
+        "--foldSpectrum "
         "--modelFile {input.modelfile} "
         "--inferredModelOutputFile {output} "
         "< {input.datafile} "
