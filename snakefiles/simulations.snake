@@ -1,105 +1,37 @@
 import numpy as np
 
-import msprime
-from twosfs import spectra_from_TreeSequence, load_spectra
-from twosfs.simulations import beta_timescale, filename2seed
-from twosfs.demographicmodel import scaled_demographic_events, DemographicModel
+from twosfs import load_spectra
+from twosfs.simulations import parameter_map, filename2seed, simulate_spectra
+from twosfs.demographicmodel import scaled_demographic_events
 
-def parameter_map(prefix):
-    """Convert a file prefix to a set of msprime parameters."""
-    default_parameters = {
-        'sample_size': 100,
-        'length': 100,
-        'recombination_rate': 0.1 / 4, # Scaled so that rT2 = 0.1 per site
-        'num_replicates': 10000,
-    }
-    if prefix == 'test':
-        parameters = {'sample_size': 21, 'num_replicates': 100}
-    elif prefix == 'kingman':
-        parameters = {}
-    elif prefix.startswith('xibeta'):
-        alpha = float(prefix.split('alpha=')[1])
-        # Rescale recombination to keep r*T_2 constant
-        r = default_parameters['recombination_rate'] / beta_timescale(alpha)
-        parameters = {'model': msprime.BetaCoalescent(alpha=alpha),
-                      'recombination_rate':r}
-    elif prefix.startswith('expgrowth'):
-        p = {elem.split("=")[0] : float(elem.split("=")[1]) for elem in prefix.split('-')[1:]}
-        g = p["g"]
-        t = p["t"]
-        dm = DemographicModel()
-        dm.add_epoch(0.0, 1.0, g)
-        dm.add_epoch(t, np.exp(-g*t))
-        dm.rescale()
-        parameters = {'demographic_events': dm.get_demographic_events()}
-    else:
-        raise KeyError('Simulation prefix not found')
-    return dict(default_parameters, **parameters)
-
+nruns = 100
+default_parameters = {
+    'sample_size': 100,
+    'length': 100,
+    'recombination_rate': 0.1 / 4, # Scaled so that rT2 = 0.1 per site
+    'num_replicates': 10000,
+}
 
 d_alpha = 0.05
 ALPHAS = [f'{a:.2f}' for a in np.arange(1 + d_alpha, 2.0, d_alpha)]
 GS = [f'{g:.1f}' for g in [0.5, 1.0, 2.0]]
 TS = [f'{t:.1f}' for t in [0.5, 1.0, 2.0]]
-
-rule simulations:
-    group: 'cleanup'
-    input:
-        'simulations/msprime/kingman.npz',
-        expand([
-                'simulations/msprime/xibeta-alpha={alpha}.npz',
-                'simulations/msprime/expgrowth-g={g}-t={t}.npz',
-                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
-                "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
-                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz',
-                "simulations/msprime/fastNeutrino.expgrowth-g={g}-t={t}.{model}.npz",
-                ],
-                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
-    output:
-        'simulations.tgz'
-    shell:
-        'tar -czf {output} {input}'
+prefixes = expand(["xibeta-alpha={alpha}", "expgrowth-g={g}-t={t}"], alpha=ALPHAS, g=GS, t=TS)
+models = ['3Epoch']
 
 rule simulate_models:
     input:
-        expand([
-                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz',
-                "simulations/msprime/fastNeutrino.expgrowth-g={g}-t={t}.{model}.npz",
-                ],
-                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
-
-rule simulate_models_folded:
-    input:
-        expand([
-                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz',
-                "simulations/msprime/fastNeutrino.expgrowth-g={g}-t={t}.{model}.npz",
-                ],
-                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch.folded'])
+        expand("simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
+               prefix=prefixes, model=models)
 
 rule fit_models:
     input:
-        expand([
-                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
-                "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
-                ],
-                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
-
-rule fit_models_folded:
-    input:
-        expand([
-                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
-                "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
-                ],
-                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch.folded'])
+        expand("simulations/fastNeutrino/{prefix}.{model}.txt",
+               prefix=prefixes, model=models)
 
 rule initial_simulations:
     input:
-        'simulations/msprime/kingman.npz',
-        expand([
-                'simulations/msprime/xibeta-alpha={alpha}.npz',
-                'simulations/msprime/expgrowth-g={g}-t={t}.npz',
-                ],
-                alpha=ALPHAS, g=GS, t=TS)
+        expand("simulations/msprime/{prefix}.npz", prefix=prefixes)
 
 ruleorder: msprime_from_fastNeutrino > msprime
 
@@ -107,14 +39,9 @@ rule msprime:
     output:
         temp('simulations/.tmp/{prefix}.rep{rep}.npz')
     run:
-        parameters = parameter_map(wildcards.prefix)
+        parameters = parameter_map(wildcards.prefix, default_parameters)
         parameters['random_seed'] = filename2seed(output[0])
-        sims = msprime.simulate(**parameters)
-        windows = np.arange(parameters['length'] + 1)
-        spectra = sum(spectra_from_TreeSequence(windows,
-                                                parameters['recombination_rate'],
-                                                tseq)
-                      for tseq in sims)
+        spectra = simulate_spectra(parameters)
         spectra.save(output[0])
 
 rule msprime_from_fastNeutrino:
@@ -123,27 +50,18 @@ rule msprime_from_fastNeutrino:
     output:
         temp('simulations/.tmp/fastNeutrino.{prefix}.rep{rep}.npz')
     run:
-        if wildcards.prefix == 'test':
-            parameters = parameter_map('test')
-        else:
-            # Use Kingman parameters, but add demographic events properly scaled
-            parameters = parameter_map('kingman')
+        # Use Kingman parameters, but add demographic events properly scaled
+        parameters = parameter_map('kingman', default_parameters)
         parameters['demographic_events'] = scaled_demographic_events(input[0])
         parameters['random_seed'] = filename2seed(output[0])
-        sims = msprime.simulate(**parameters)
-        windows = np.arange(parameters['length'] + 1)
-        spectra = sum(spectra_from_TreeSequence(windows,
-                                                parameters['recombination_rate'],
-                                                tseq)
-                      for tseq in sims)
+        spectra = simulate_spectra(parameters)
         spectra.save(output[0])
 
 rule add_runs:
-    group: 'cleanup'
     output:
         'simulations/msprime/{prefix}.npz'
     input:
-        expand('simulations/.tmp/{prefix}.rep{rep}.npz', rep=range(10), allow_missing=True)
+        expand('simulations/.tmp/{prefix}.rep{rep}.npz', rep=range(nruns), allow_missing=True)
     run:
         total = sum(load_spectra(infn) for infn in input)
         total.save(output[0])
@@ -158,22 +76,6 @@ rule fastNeutrino:
         "log/fastNeutrino.{prefix}.{model}.log"
     shell:
         "fastNeutrino --maxB 20 --maxRandomRestarts 100 "
-        "--modelFile {input.modelfile} "
-        "--inferredModelOutputFile {output} "
-        "< {input.datafile} "
-        "> {log}"
-
-rule fastNeutrino_folded:
-    input:
-        datafile = "simulations/.tmp/{prefix}.sfs.txt",
-        modelfile = "twosfs/models/{model}.txt"
-    output:
-        "simulations/fastNeutrino/{prefix}.{model}.folded.txt"
-    log:
-        "log/fastNeutrino.{prefix}.{model}.log"
-    shell:
-        "fastNeutrino --maxB 20 --maxRandomRestarts 100 "
-        "--foldSpectrum "
         "--modelFile {input.modelfile} "
         "--inferredModelOutputFile {output} "
         "< {input.datafile} "

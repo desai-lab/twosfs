@@ -1,8 +1,58 @@
 """Helper functions for running msprime simulations."""
 from hashlib import blake2b
+from typing import Dict
 
+import msprime
 import numpy as np
 from scipy.special import betaln
+
+from twosfs.demographicmodel import DemographicModel
+from twosfs.spectra import spectra_from_TreeSequence
+
+
+def parameter_map(prefix: str, default_parameters: Dict):
+    """Convert a file prefix to a set of msprime parameters."""
+    if prefix == "kingman":
+        parameters = {}
+    elif prefix.startswith("xibeta"):
+        alpha = float(prefix.split("alpha=")[1])
+        # Rescale recombination to keep r*T_2 constant
+        r = default_parameters["recombination_rate"] / beta_timescale(alpha)
+        parameters = {
+            "model": msprime.BetaCoalescent(alpha=alpha),
+            "recombination_rate": r,
+        }
+    elif prefix.startswith("expgrowth"):
+        p = {
+            elem.split("=")[0]: float(elem.split("=")[1])
+            for elem in prefix.split("-")[1:]
+        }
+        g = p["g"]
+        t = p["t"]
+        dm = DemographicModel()
+        dm.add_epoch(0.0, 1.0, g)
+        dm.add_epoch(t, np.exp(-g * t))
+        dm.rescale()
+        parameters = {"demographic_events": dm.get_demographic_events()}
+    else:
+        raise KeyError("Simulation prefix not found")
+    return dict(default_parameters, **parameters)
+
+
+def simulate_spectra(parameters: Dict):
+    """Run msprime simulations and return a Spectra object.
+
+    Parameters
+    ----------
+    parameters : Dict
+        Parameters to pass to msprime
+    """
+    sims = msprime.simulate(**parameters)
+    windows = np.arange(parameters["length"] + 1)
+    return sum(
+        spectra_from_TreeSequence(windows, parameters["recombination_rate"], tseq)
+        for tseq in sims
+    )
 
 
 def beta_timescale(alpha, pop_size=1.0):
