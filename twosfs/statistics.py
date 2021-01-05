@@ -1,6 +1,8 @@
 """Functions for running statistical tests on twosfs."""
 import numpy as np
 
+from twosfs.spectra import Spectra, lump_twosfs
+
 
 def conditional_sfs(twosfs):
     """Compute the conditional cumulative distributions from a 2SFS."""
@@ -53,7 +55,15 @@ def rank(value, comparisons):
     return np.sum(value[:, None] > comparisons[None, :], axis=0)
 
 
-def compare(spectra_data, spectra_fitted, d1, d2, max_k, n_reps):
+def compare(
+    spectra_data: Spectra,
+    spectra_fitted: Spectra,
+    d1: int,
+    d2: int,
+    max_k: int,
+    n_reps: int,
+    folded: bool,
+):
     """Compare two 2-SFS by resampling the distance statistic.
 
     Parameters
@@ -70,6 +80,8 @@ def compare(spectra_data, spectra_fitted, d1, d2, max_k, n_reps):
         The largest allele frequency to consider.
     n_reps : int
         The number of times to resample from the simulated 2-SFS.
+    folded : bool
+        If True, fold the 2-SFS
 
     Returns
     -------
@@ -79,8 +91,10 @@ def compare(spectra_data, spectra_fitted, d1, d2, max_k, n_reps):
         The observed normalized KS distances for each resample
 
     """
-    twosfs_data = spectra_data.normalized_twosfs(folded=True)[d1, 1:max_k, 1:max_k]
-    twosfs_fitted = spectra_fitted.normalized_twosfs(folded=True)[d2, 1:max_k, 1:max_k]
+    twosfs_data = spectra_data.normalized_twosfs(folded=folded)[d1, 1:max_k, 1:max_k]
+    twosfs_fitted = spectra_fitted.normalized_twosfs(folded=folded)[
+        d2, 1:max_k, 1:max_k
+    ]
     F_data = conditional_sfs(twosfs_data)
     F_fitted = conditional_sfs(twosfs_fitted)
     n_obs = np.sum(spectra_data.twosfs[d1, 1:max_k, 1:max_k], axis=1) / 2
@@ -92,3 +106,63 @@ def compare(spectra_data, spectra_fitted, d1, d2, max_k, n_reps):
         n_reps,
     )
     return D * np.sqrt(n_obs), resamples
+
+
+def compare2(
+    spectra_comparison: Spectra,
+    spectra_null: Spectra,
+    d1: int,
+    d2: int,
+    max_k: int,
+    n_reps: int,
+    num_pairs: int,
+    folded: bool,
+):
+    """Compare two simulated 2-SFS by resampling the distance statistic in both.
+
+    Parameters
+    ----------
+    spectra_comparison : Spectra
+        The spectra for comparison.
+    spectra_null : Spectra
+        The null spectra.
+    d1 : int
+        The distance between pairs of sites in the comparison spectra.
+    d2 : int
+        The distance between pairs of sites in the null spectra.
+    max_k : int
+        The largest allele frequency to consider.
+    n_reps : int
+        The number of times to resample from the simulated 2-SFS.
+    num_pairs : int
+        The number of pairs of sites to resample.
+    folded : bool
+        If True, fold the 2-SFS
+
+    Returns
+    -------
+    resamples_comparison : np.ndarray
+        The observed normalized KS distances between comparison and null
+    resamples_null : np.ndarray
+        The observed normalized KS distances between null and null
+
+    """
+    twosfs_comparison = lump_twosfs(
+        spectra_comparison.normalized_twosfs(folded=folded), max_k
+    )[d1, 1:, 1:]
+    twosfs_null = lump_twosfs(spectra_null.normalized_twosfs(folded=folded), max_k)[
+        d1, 1:, 1:
+    ]
+    resamples_comparison = resample_distance(
+        twosfs_comparison,
+        twosfs_null,
+        num_pairs,
+        n_reps,
+    )
+    resamples_null = resample_distance(
+        twosfs_null,
+        twosfs_null,
+        num_pairs,
+        n_reps,
+    )
+    return resamples_comparison, resamples_null
