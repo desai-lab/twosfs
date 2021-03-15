@@ -1,168 +1,106 @@
 """Functions for running statistical tests on twosfs."""
+from functools import partial
+from typing import List, Optional, Tuple, Union
+
 import numpy as np
+from scipy.stats import chi2
 
 from twosfs.spectra import Spectra, lump_twosfs
 
 
-def conditional_sfs(twosfs):
-    """Compute the conditional cumulative distributions from a 2SFS."""
-    F = np.cumsum(twosfs, axis=1)
-    F /= F[:, -1][:, None]
-    return F
+def twosfs_pdf(
+    spectra: Spectra, dist: Union[int, List[int]], max_k: int, folded: bool
+) -> np.ndarray:
+    """Get the twosfs for segregating sites as a normalized 2D pdf."""
+    return lump_twosfs(spectra.normalized_twosfs(folded=folded), max_k)[dist, 1:, 1:]
 
 
-def distance(F1, F2):
-    """Compute the KS distance between two distribution functions."""
-    return np.max(np.abs(F1 - F2), axis=1)
+def fisher_test(p_values: np.ndarray) -> Tuple[float, float]:
+    """Compute the Fisher's test statistic and p-value for an array of p-values."""
+    fisher_stat = -2 * np.sum(np.log(p_values))
+    df = 2 * len(p_values)
+    fisher_p = chi2.sf(fisher_stat, df=df)
+    return fisher_stat, fisher_p
 
 
-def resample_distance(sampling_dist, comparison_dist, n_obs: int, n_reps: int):
-    """
-    Compute distances between a distribution and random empirical CDF.
-
-    Parameters
-    ----------
-    sampling_dist : ndarray
-        Discrete distribution to take multinomial samples from
-    comparison_dist : ndarray
-        Distribution to compute distances from
-    n_obs : int
-        Number of samples in the multinomial distribution
-    n_reps : int
-        Number of multinomial samples to take
-
-    Returns
-    -------
-    ndarray
-        The distances between the random draws and comparison_dist
-    """
-    F_exp = conditional_sfs(comparison_dist)
-    D = np.zeros((n_reps, sampling_dist.shape[0]))
-    for rep in range(n_reps):
-        rand_counts = np.random.multinomial(n_obs, sampling_dist.ravel()).reshape(
-            sampling_dist.shape
-        )
-        rand_counts = (rand_counts + rand_counts.T) / 2
-        cumcounts = np.cumsum(rand_counts, axis=1)
-        n_row = cumcounts[:, -1]
-        F_obs = cumcounts / n_row[:, None]
-        D[rep] = distance(F_exp, F_obs) * np.sqrt(n_row)
-    return D
+def ks_distance(cdf1: np.ndarray, cdf2: np.ndarray) -> float:
+    """Compute the KS distance between two CDFs."""
+    return np.max(np.abs(cdf1 - cdf2))
 
 
-def rank(value, comparisons):
-    """Compute the rank of a value in a list of comparisons."""
-    return np.sum(value[:, None] > comparisons[None, :], axis=0)
-
-
-def compare(
-    spectra_data: Spectra,
-    spectra_fitted: Spectra,
-    d1: int,
-    d2: int,
-    max_k: int,
-    n_reps: int,
-    folded: bool,
-):
-    """Compare two 2-SFS by resampling the distance statistic.
-
-    Parameters
-    ----------
-    spectra_data : Spectra
-        The observed spectra.
-    spectra_fitted : Spectra
-        The simulated spectra of the fitted model.
-    d1 : int
-        The distance between pairs of sites in the data.
-    d2 : int
-        The distance between pairs of sites in the fitted model.
-    max_k : int
-        The largest allele frequency to consider.
-    n_reps : int
-        The number of times to resample from the simulated 2-SFS.
-    folded : bool
-        If True, fold the 2-SFS
-
-    Returns
-    -------
-    D : np.ndarray
-        The observed normalized KS distances as a function of allele frequency.
-    resamples : np.ndarray
-        The observed normalized KS distances for each resample
-
-    """
-    twosfs_data = spectra_data.normalized_twosfs(folded=folded)[d1, 1:max_k, 1:max_k]
-    twosfs_fitted = spectra_fitted.normalized_twosfs(folded=folded)[
-        d2, 1:max_k, 1:max_k
-    ]
-    F_data = conditional_sfs(twosfs_data)
-    F_fitted = conditional_sfs(twosfs_fitted)
-    n_obs = np.sum(spectra_data.twosfs[d1, 1:max_k, 1:max_k], axis=1) / 2
-    D = distance(F_data, F_fitted)
-    resamples = resample_distance(
-        twosfs_fitted,
-        twosfs_fitted,
-        spectra_data.num_pairs[d1],
-        n_reps,
+def max_ks_distance(pdf1: np.ndarray, pdf2: np.ndarray) -> float:
+    """Compute the maximum KS distance between two (multidimensional) PDFs."""
+    return max(
+        ks_distance(cdf1, cdf2) for cdf1, cdf2 in zip(_all_cdfs(pdf1), _all_cdfs(pdf2))
     )
-    return D * np.sqrt(n_obs), resamples
 
 
-def compare2(
-    spectra_comparison: Spectra,
+def empirical_pvals(values: np.ndarray, comparisons: List[np.ndarray]):
+    """Compute the rank of a value in an array of comparisons with pseudocounts."""
+    return (1 + np.sum(comparisons > values, axis=0)) / (2 + len(comparisons))
+
+
+def resample_twosfs_pdf(input_twosfs_pdf: np.ndarray, n_obs: np.ndarray) -> np.ndarray:
+    sampled_pdf = np.zeros_like(input_twosfs_pdf)
+    for i, pdf in enumerate(input_twosfs_pdf):
+        rand_counts = np.random.multinomial(n_obs[i], pdf.ravel()).reshape(pdf.shape)
+        sampled_pdf[i] = (rand_counts + rand_counts.T) / (2 * np.sum(rand_counts))
+    return sampled_pdf
+
+
+def twosfs_test(
+    spectra_comp: Spectra,
     spectra_null: Spectra,
-    d1: int,
-    d2: int,
+    d_comp: List[int],
+    d_null: List[int],
     max_k: int,
-    n_reps: int,
-    num_pairs: int,
     folded: bool,
-):
-    """Compare two simulated 2-SFS by resampling the distance statistic in both.
-
-    Parameters
-    ----------
-    spectra_comparison : Spectra
-        The spectra for comparison.
-    spectra_null : Spectra
-        The null spectra.
-    d1 : int
-        The distance between pairs of sites in the comparison spectra.
-    d2 : int
-        The distance between pairs of sites in the null spectra.
-    max_k : int
-        The largest allele frequency to consider.
-    n_reps : int
-        The number of times to resample from the simulated 2-SFS.
-    num_pairs : int
-        The number of pairs of sites to resample.
-    folded : bool
-        If True, fold the 2-SFS
-
-    Returns
-    -------
-    resamples_comparison : np.ndarray
-        The observed normalized KS distances between comparison and null
-    resamples_null : np.ndarray
-        The observed normalized KS distances between null and null
-
-    """
-    twosfs_comparison = lump_twosfs(
-        spectra_comparison.normalized_twosfs(folded=folded), max_k
-    )[d1, 1:, 1:]
-    twosfs_null = lump_twosfs(spectra_null.normalized_twosfs(folded=folded), max_k)[
-        d1, 1:, 1:
+    n_reps: int,
+    resample_comp: bool,
+    num_pairs: Optional[List[int]] = None,
+) -> List[float]:
+    twosfs_comp = twosfs_pdf(spectra_comp, d_comp, max_k, folded)
+    twosfs_null = twosfs_pdf(spectra_null, d_null, max_k, folded)
+    if not num_pairs:
+        num_pairs = twosfs_comp.num_pairs[d_comp]
+    if resample_comp:
+        samples_comp = [
+            resample_twosfs_pdf(twosfs_comp, num_pairs) for rep in range(n_reps)
+        ]
+    else:
+        samples_comp = [twosfs_comp]
+    samples_null = [
+        resample_twosfs_pdf(twosfs_null, num_pairs) for rep in range(n_reps)
     ]
-    resamples_comparison = resample_distance(
-        twosfs_comparison,
-        twosfs_null,
-        num_pairs,
-        n_reps,
-    )
-    resamples_null = resample_distance(
-        twosfs_null,
-        twosfs_null,
-        num_pairs,
-        n_reps,
-    )
-    return resamples_comparison, resamples_null
+    ks_comp = [
+        np.array([max_ks_distance(s, n) for s, n in zip(sample, twosfs_null)])
+        for sample in samples_comp
+    ]
+    ks_null = [
+        np.array([max_ks_distance(s, n) for s, n in zip(sample, twosfs_null)])
+        for sample in samples_null
+    ]
+    p_comp = [empirical_pvals(samp, ks_null) for samp in ks_comp]
+    return np.array([fisher_test(samp)[1] for samp in p_comp])
+
+
+def _axis_combinations(n_dims: int) -> List[Tuple]:
+    if n_dims <= 0:
+        return [()]
+    else:
+        sublist = _axis_combinations(n_dims - 1)
+        return sublist + [(*t, n_dims - 1) for t in sublist]
+
+
+def _cumsum_all_axes(x: np.ndarray, axis: Optional[int] = None) -> np.ndarray:
+    if axis is None:
+        axis = x.ndim - 1
+    if axis < 0:
+        return x
+    else:
+        return np.cumsum(_cumsum_all_axes(x, axis=axis - 1), axis=axis)
+
+
+def _all_cdfs(pdf: np.ndarray) -> List[np.ndarray]:
+    flips = [partial(np.flip, axis=axes) for axes in _axis_combinations(pdf.ndim)]
+    return [flip(_cumsum_all_axes(flip(pdf))) for flip in flips]
