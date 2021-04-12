@@ -16,8 +16,15 @@ d_alpha = 0.05
 ALPHAS = [f'{a:.2f}' for a in np.arange(1 + d_alpha, 2.0, d_alpha)]
 GS = [f'{g:.1f}' for g in [0.5, 1.0, 2.0]]
 TS = [f'{t:.1f}' for t in [0.5, 1.0, 2.0]]
+RS = [f'{r:.2f}' for r in np.logspace(-1, 1, 7, base=2)]
+
 prefixes = expand(["xibeta-alpha={alpha}", "expgrowth-g={g}-t={t}"], alpha=ALPHAS, g=GS, t=TS)
 models = ['3Epoch']
+
+rule simulate_models_recombination:
+    input:
+        expand("simulations/msprime/fastNeutrino.{prefix}.rec{r_factor}.{model}.npz",
+               prefix=prefixes, model=models, r_factor=RS)
 
 rule simulate_models:
     input:
@@ -53,6 +60,24 @@ rule msprime_from_fastNeutrino:
         # Use Kingman parameters, but add demographic events properly scaled
         parameters = parameter_map('kingman', default_parameters)
         parameters['demographic_events'] = scaled_demographic_events(input[0])
+        parameters['random_seed'] = filename2seed(output[0])
+        spectra = simulate_spectra(parameters)
+        spectra.save(output[0])
+
+
+rule msprime_from_fastNeutrino_modified_recombination:
+    input:
+        "simulations/fastNeutrino/{prefix}.txt"
+    output:
+        temp('simulations/.tmp/fastNeutrino.{prefix}.rec{r_factor}.rep{rep}.npz')
+    run:
+        # Use Kingman parameters, but add demographic events properly scaled
+        # modify recombination rate by r_factor
+        # Use shorter sequences (25 bases)
+        parameters = parameter_map('kingman', default_parameters)
+        parameters['demographic_events'] = scaled_demographic_events(input[0])
+        parameters['recombination_rate'] *= float(r_factor)
+        parameters['length'] = 25
         parameters['random_seed'] = filename2seed(output[0])
         spectra = simulate_spectra(parameters)
         spectra.save(output[0])
