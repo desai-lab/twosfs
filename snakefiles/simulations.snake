@@ -23,7 +23,7 @@ models = ['3Epoch']
 
 rule simulate_models_recombination:
     input:
-        expand("simulations/msprime/fastNeutrino.{prefix}.rec{r_factor}.{model}.npz",
+        expand("simulations/msprime/fastNeutrino.{prefix}.{model}.rec{r_factor}.npz",
                prefix=prefixes, model=models, r_factor=RS)
 
 rule simulate_models:
