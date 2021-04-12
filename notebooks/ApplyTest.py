@@ -17,6 +17,8 @@
 # %autoreload 1
 # %aimport twosfs.demographicmodel, twosfs.spectra, twosfs.statistics
 
+import json
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -109,6 +111,7 @@ for sim in sims:
                 )
 # -
 
+
 for pair_density in pair_densities:
     for i, max_d in enumerate(max_ds):
         for alpha in alphas:
@@ -129,3 +132,36 @@ for pair_density in pair_densities:
     plt.hlines(0.05, 0, 8, "k")
     plt.title(f"{pair_density}")
     plt.show()
+
+
+spectra_dmel_data = load_spectra("../data/DPGP3/AllChroms.spectra.npz")
+spectra_dmel_fitted = load_spectra("../data/DPGP3/msprime/AllChroms.3Epoch.npz")
+d_dmel = [3, 6, 9, 12, 15]
+folded_dmel = True
+pvals_dmel = twosfs_test(
+    spectra_dmel_data,
+    spectra_dmel_fitted,
+    d_dmel,
+    d_dmel,
+    max_k=20,
+    folded=True,
+    n_reps=1000,
+    resample_comp=False,
+)
+print(pvals_dmel)
+
+for offset in offsets:
+    for pair_density in pair_densities:
+        for i, max_d in enumerate(max_ds):
+            for j, g in enumerate(growth_rates):
+                for k, t in enumerate(growth_times):
+                    params = (f"expgrowth-g={g}-t={t}", pair_density, max_d, offset)
+                    plt.plot(j + 3 * k, power(pvals[params]), ".", color=f"C{i}")
+        plt.ylim([0, 1])
+        plt.hlines(0.05, 0, 8, "k")
+        plt.title(f"{pair_density} {offset}")
+        plt.show()
+
+
+with open("output.json", "w") as outfile:
+    json.dump([(key, pv.tolist()) for key, pv in pvals.items()], outfile)

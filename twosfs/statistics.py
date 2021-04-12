@@ -3,7 +3,7 @@ from functools import partial
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
-from scipy.stats import chi2
+from scipy.stats import cauchy, chi2
 
 from twosfs.spectra import Spectra, lump_twosfs
 
@@ -21,6 +21,13 @@ def fisher_test(p_values: np.ndarray) -> Tuple[float, float]:
     df = 2 * len(p_values)
     fisher_p = chi2.sf(fisher_stat, df=df)
     return fisher_stat, fisher_p
+
+
+def cauchy_test(p_values: np.ndarray) -> Tuple[float, float]:
+    """Compute the Cauchy combination test stat and p-value for an array of p-values."""
+    cauchy_stat = np.mean(np.tan(0.5 - p_values) - np.pi)
+    cauchy_p = cauchy.sf(cauchy_stat)
+    return cauchy_stat, cauchy_p
 
 
 def ks_distance(cdf1: np.ndarray, cdf2: np.ndarray) -> float:
@@ -41,6 +48,7 @@ def empirical_pvals(values: np.ndarray, comparisons: List[np.ndarray]):
 
 
 def resample_twosfs_pdf(input_twosfs_pdf: np.ndarray, n_obs: np.ndarray) -> np.ndarray:
+    """Multinomial sample the twosfs pdf, symmetrize, and normalize."""
     sampled_pdf = np.zeros_like(input_twosfs_pdf)
     for i, pdf in enumerate(input_twosfs_pdf):
         rand_counts = np.random.multinomial(n_obs[i], pdf.ravel()).reshape(pdf.shape)
@@ -59,10 +67,11 @@ def twosfs_test(
     resample_comp: bool,
     num_pairs: Optional[List[int]] = None,
 ) -> List[float]:
+    """Return array of p-values from the twosfs test. For power calculations."""
     twosfs_comp = twosfs_pdf(spectra_comp, d_comp, max_k, folded)
     twosfs_null = twosfs_pdf(spectra_null, d_null, max_k, folded)
     if not num_pairs:
-        num_pairs = twosfs_comp.num_pairs[d_comp]
+        num_pairs = spectra_comp.num_pairs[d_comp]
     if resample_comp:
         samples_comp = [
             resample_twosfs_pdf(twosfs_comp, num_pairs) for rep in range(n_reps)
