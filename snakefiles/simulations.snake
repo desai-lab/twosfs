@@ -16,7 +16,7 @@ d_alpha = 0.05
 ALPHAS = [f'{a:.2f}' for a in np.arange(1 + d_alpha, 2.0, d_alpha)]
 GS = [f'{g:.1f}' for g in [0.5, 1.0, 2.0]]
 TS = [f'{t:.1f}' for t in [0.5, 1.0, 2.0]]
-RS = [f'{r:.2f}' for r in np.logspace(-1, 1, 7, base=2)]
+RS = [f'{r:.2f}' for r in np.logspace(-1, 1, 4, base=2)]
 
 prefixes = expand(["xibeta-alpha={alpha}", "expgrowth-g={g}-t={t}"], alpha=ALPHAS, g=GS, t=TS)
 models = ['3Epoch']
@@ -76,7 +76,7 @@ rule msprime_from_fastNeutrino_modified_recombination:
         # Use shorter sequences (25 bases)
         parameters = parameter_map('kingman', default_parameters)
         parameters['demographic_events'] = scaled_demographic_events(input[0])
-        parameters['recombination_rate'] *= float(r_factor)
+        parameters['recombination_rate'] *= float(wildcards.r_factor)
         parameters['length'] = 25
         parameters['random_seed'] = filename2seed(output[0])
         spectra = simulate_spectra(parameters)
