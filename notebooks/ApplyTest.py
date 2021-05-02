@@ -18,6 +18,7 @@
 # %aimport twosfs.demographicmodel, twosfs.spectra, twosfs.statistics
 
 import json
+from typing import Dict, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,45 +33,53 @@ def power(pvals, alpha=0.05):
     return np.mean(pvals < alpha)
 
 
-def compute_pvals(
-    spectra_comp: Spectra,
-    spectra_null: Spectra,
-    pair_density: int,
-    max_d: int,
-    max_k: int,
-    folded: bool,
-    offset: int = 0,
-    n_reps: int = 1000,
-):
-    """Compute the p-vals for a set of parameter."""
-    if offset >= 0:
-        d_comp = np.arange(1, max_d)
-        d_null = np.arange(1, max_d) + offset
-    else:
-        d_comp = np.arange(1, max_d) + offset
-        d_null = np.arange(1, max_d)
-    num_pairs = [pair_density] * len(d_comp)
-    return twosfs_test(
-        spectra_comp,
-        spectra_null,
-        d_comp,
-        d_null,
-        max_k,
-        folded,
-        n_reps,
-        True,
-        num_pairs,
+def filt(data: Dict, folded: bool, max_d: int, pair_density: int):
+    return filter(
+        lambda x: x["folded"] == folded
+        and x["max_d"] == max_d
+        and x["pair_density"] == pair_density,
+        data,
     )
 
 
-# +
+rec_rates = [f"{r:.2f}" for r in np.logspace(-1, 1, 4, base=2)] + ["1.00"]
 alphas = [f"{a:0.2f}" for a in np.arange(1.05, 2.0, 0.05)]
 growth_rates = [f"{g:.1f}" for g in [0.5, 1.0, 2.0]]
 growth_times = [f"{t:.1f}" for t in [0.5, 1.0, 2.0]]
-
 sims_alpha = [f"xibeta-alpha={alpha}" for alpha in alphas]
 sims_exp = [f"expgrowth-g={g}-t={t}" for g in growth_rates for t in growth_times]
 sims = sims_alpha + sims_exp
+
+max_k = 20
+folded = False
+pair_densities = [100, 1000, 10000]
+max_ds = [2, 6, 11, 16]
+
+data: Dict[Tuple[str, Optional[str]], Dict] = {}
+for sim in sims:
+    with open(f"../simulations/pvalues/{sim}.3Epoch.json") as datafile:
+        data[(sim, None)] = json.load(datafile)
+    for r in rec_rates:
+        with open(f"../simulations/pvalues/{sim}.3Epoch.rec={r}.json") as datafile:
+            data[(sim, r)] = json.load(datafile)
+
+
+for sim in sims:
+    nonrec_data = data[(sim, None)]
+    for i, pd in enumerate(pair_densities):
+        for line in filt(nonrec_data, False, 16, pd):
+            plt.hlines(power(np.array(line["p_vals"])), 0.5, 2.0, color=f"C{i}")
+
+    for r in rec_rates:
+        rec_data = data[(sim, r)]
+        for i, pd in enumerate(pair_densities):
+            for line in filt(rec_data, False, 16, pd):
+                p = power(np.array(line["p_vals"]))
+                plt.semilogx(float(r), p, ".", color=f"C{i}")
+    plt.title(sim)
+    plt.ylim([0, 1.05])
+    plt.show()
+
 
 models = {}
 spectra_comps = {}
@@ -79,37 +88,11 @@ for sim in sims:
     modelfn = f"../simulations/fastNeutrino/{sim}.3Epoch.txt"
     comparisonfn = f"../simulations/msprime/{sim}.npz"
     nullfn = f"../simulations/msprime/fastNeutrino.{sim}.3Epoch.npz"
-
     dm = DemographicModel(modelfn)
     dm.rescale()
     models[sim] = dm
     spectra_comps[sim] = load_spectra(comparisonfn)
     spectra_nulls[sim] = load_spectra(nullfn)
-
-# +
-max_k = 20
-folded = False
-pair_densities = [100, 1000, 10000]
-max_ds = [2, 6, 11, 16]
-offsets = [-3, -1, 0, 1, 3]
-
-pvals = {}
-for sim in sims:
-    print(sim)
-    for pair_density in pair_densities:
-        for max_d in max_ds:
-            for offset in offsets:
-                params = (sim, pair_density, max_d, offset)
-                pvals[params] = compute_pvals(
-                    spectra_comps[sim],
-                    spectra_nulls[sim],
-                    pair_density,
-                    max_d,
-                    max_k,
-                    folded,
-                    offset,
-                )
-# -
 
 
 for pair_density in pair_densities:
