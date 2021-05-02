@@ -26,6 +26,8 @@ models = ['3Epoch']
 rule compute_all_pvalues:
     input:
         expand("simulations/pvalues/{prefix}.{model}.rec={r_factor}.json",
+               prefix=prefixes, model=models, r_factor=RS),
+        expand("simulations/pvalues/{prefix}.{model}.json",
                prefix=prefixes, model=models, r_factor=RS)
 
 rule simulate_models_recombination:
@@ -49,7 +51,6 @@ rule initial_simulations:
 
 ruleorder: msprime_from_fastNeutrino_modified_recombination > msprime_from_fastNeutrino > msprime
 
-
 rule msprime:
     output:
         temp('simulations/.tmp/{prefix}.rep{rep}.npz')
@@ -64,7 +65,22 @@ pair_densities = [100, 1000, 10000]
 max_ds = [2, 6, 11, 16]
 n_reps = 1000
 
+ruleorder: compute_pvalues_recombination > compute_pvalues
+
 rule compute_pvalues:
+    input:
+        "simulations/msprime/{prefix}.npz",
+        "simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
+    output:
+        "simulations/pvalues/{prefix}.{model}.json"
+    run:
+        spectra_comp = load_spectra(input[0])
+        spectra_null = load_spectra(input[1])
+        results = scan_parameters(spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps)
+        with open(output[0], "w") as outfile:
+            json.dump(results, outfile)
+
+rule compute_pvalues_recombination:
     input:
         "simulations/msprime/fastNeutrino.{prefix}.{model}.rec={r_factor}.npz",
         "simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
