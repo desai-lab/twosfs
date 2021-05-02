@@ -1,6 +1,6 @@
 """Functions for running statistical tests on twosfs."""
 from functools import partial
-from typing import List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from scipy.stats import cauchy, chi2
@@ -66,7 +66,7 @@ def twosfs_test(
     n_reps: int,
     resample_comp: bool,
     num_pairs: Optional[List[int]] = None,
-) -> List[float]:
+) -> np.ndarray:
     """Return array of p-values from the twosfs test. For power calculations."""
     twosfs_comp = twosfs_pdf(spectra_comp, d_comp, max_k, folded)
     twosfs_null = twosfs_pdf(spectra_null, d_null, max_k, folded)
@@ -113,3 +113,40 @@ def _cumsum_all_axes(x: np.ndarray, axis: Optional[int] = None) -> np.ndarray:
 def _all_cdfs(pdf: np.ndarray) -> List[np.ndarray]:
     flips = [partial(np.flip, axis=axes) for axes in _axis_combinations(pdf.ndim)]
     return [flip(_cumsum_all_axes(flip(pdf))) for flip in flips]
+
+
+def scan_parameters(
+    spectra_comp: Spectra,
+    spectra_null: Spectra,
+    pair_densities: List[int],
+    max_ds: List[int],
+    max_k: int,
+    n_reps: int,
+) -> List[Dict[str, Any]]:
+    """Scan parameters and compute `n_reps` pvalues for each."""
+    results = []
+    for folded in [True, False]:
+        for pair_density in pair_densities:
+            for max_d in max_ds:
+                d = np.arange(1, max_d)
+                num_pairs = [pair_density] * len(d)
+                p_vals = twosfs_test(
+                    spectra_comp,
+                    spectra_null,
+                    d,
+                    d,
+                    max_k,
+                    folded,
+                    n_reps,
+                    True,
+                    num_pairs,
+                )
+                results.append(
+                    {
+                        "folded": folded,
+                        "max_d": max_d,
+                        "pair_density": pair_density,
+                        "p_vals": p_vals.tolist(),
+                    }
+                )
+    return results

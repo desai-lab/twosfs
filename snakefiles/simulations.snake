@@ -1,8 +1,10 @@
 import numpy as np
+import json
 
 from twosfs import load_spectra
 from twosfs.simulations import parameter_map, filename2seed, simulate_spectra
 from twosfs.demographicmodel import scaled_demographic_events
+from twosfs.statistics import scan_parameters
 
 nruns = 100
 default_parameters = {
@@ -16,10 +18,15 @@ d_alpha = 0.05
 ALPHAS = [f'{a:.2f}' for a in np.arange(1 + d_alpha, 2.0, d_alpha)]
 GS = [f'{g:.1f}' for g in [0.5, 1.0, 2.0]]
 TS = [f'{t:.1f}' for t in [0.5, 1.0, 2.0]]
-RS = [f'{r:.2f}' for r in np.logspace(-1, 1, 4, base=2)]
+RS = [f'{r:.2f}' for r in np.logspace(-1, 1, 4, base=2)] + ["1.00"]
 
 prefixes = expand(["xibeta-alpha={alpha}", "expgrowth-g={g}-t={t}"], alpha=ALPHAS, g=GS, t=TS)
 models = ['3Epoch']
+
+rule compute_all_pvalues:
+    input:
+        expand("simulations/pvalues/{prefix}.{model}.rec={r_factor}.json",
+               prefix=prefixes, model=models, r_factor=RS)
 
 rule simulate_models_recombination:
     input:
@@ -42,6 +49,7 @@ rule initial_simulations:
 
 ruleorder: msprime_from_fastNeutrino_modified_recombination > msprime_from_fastNeutrino > msprime
 
+
 rule msprime:
     output:
         temp('simulations/.tmp/{prefix}.rep{rep}.npz')
@@ -50,6 +58,24 @@ rule msprime:
         parameters['random_seed'] = filename2seed(output[0])
         spectra = simulate_spectra(parameters)
         spectra.save(output[0])
+
+max_k = 20
+pair_densities = [100, 1000, 10000]
+max_ds = [2, 6, 11, 16]
+n_reps = 1000
+
+rule compute_pvalues:
+    input:
+        "simulations/msprime/fastNeutrino.{prefix}.{model}.rec={r_factor}.npz",
+        "simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
+    output:
+        "simulations/pvalues/{prefix}.{model}.rec={r_factor}.json"
+    run:
+        spectra_comp = load_spectra(input[0])
+        spectra_null = load_spectra(input[1])
+        results = scan_parameters(spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps)
+        with open(output[0], "w") as outfile:
+            json.dump(results, outfile)
 
 rule msprime_from_fastNeutrino:
     input:
