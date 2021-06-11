@@ -1,0 +1,20 @@
+name: twosfs
+channels:
+  - defaults
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.9
+  - pip
+  - snakemake~=5.26
+  - matplotlib~=3.3
+  - jupytext~=1.5
+  - jupyterlab~=2.1
+  - nodejs
+  - numpy
+  - scipy
+  - pytest
+  - hypothesis
+  - pip:
+      - pyslim
+      - -e .
