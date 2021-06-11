@@ -266,10 +266,12 @@ def spectra_from_TreeSequence(
 ) -> Spectra:
     """Construct a Spectra object from a tskit.TreeSeqeunce."""
     num_samples = tseq.sample_size
-    num_sites = len(windows) - 1
-    num_pairs = np.ones(len(windows) - 1)
-    afs = tseq.allele_frequency_spectrum(mode="branch", windows=windows, polarised=True)
-    onesfs = np.mean(afs, axis=0)
+    num_sites = windows[-1] - windows[0]
+    num_pairs = np.diff(windows)
+    afs = tseq.allele_frequency_spectrum(
+        mode="branch", windows=windows, polarised=True, span_normalise=False
+    )
+    onesfs = np.sum(afs, axis=0)
     twosfs = afs[0, :, None] * afs[:, None, :]
     return Spectra(
         num_samples, windows, recombination_rate, num_sites, num_pairs, onesfs, twosfs
