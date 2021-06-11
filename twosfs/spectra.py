@@ -1,4 +1,6 @@
 """Class and functions for manipulating SFS and 2SFS."""
+from collections.abc import Iterable
+from copy import deepcopy
 
 import attr
 import attr.validators as v
@@ -68,7 +70,7 @@ def _zero_if_num_pairs(instance, attribute, value):
         )
 
 
-@attr.s(frozen=True, eq=False)
+@attr.s(eq=False)
 class Spectra(object):
     """
     Stores SFS and 2SFS data.
@@ -162,17 +164,7 @@ class Spectra(object):
             return self.__add__(zero_spectra_like(self))
         elif type(self) is not type(other):
             return NotImplemented
-        if not self.compatible(other):
-            raise ValueError("Can not add incompatible spectra.")
-        return Spectra(
-            self.num_samples,
-            self.windows,
-            self.recombination_rate,
-            self.num_sites + other.num_sites,
-            self.num_pairs + other.num_pairs,
-            self.onesfs + other.onesfs,
-            self.twosfs + other.twosfs,
-        )
+        return add_spectra((self, other))
 
     def __radd__(self, other) -> "Spectra":
         """Addition of spectra is commutative."""
@@ -226,6 +218,20 @@ class Spectra(object):
             May be a filename string or a file handle.
         """
         np.savez_compressed(output_file, **self.__dict__)
+
+
+def add_spectra(specs: Iterable[Spectra]):
+    """Add an iterable of compatible spectra."""
+    it = iter(specs)
+    ret = deepcopy(next(it))
+    for s in it:
+        if not ret.compatible(s):
+            raise ValueError("Spectra are incompatible.")
+        ret.num_sites += s.num_sites
+        ret.num_pairs += s.num_pairs
+        ret.onesfs += s.onesfs
+        ret.twosfs += s.twosfs
+    return ret
 
 
 # Spectra constructors

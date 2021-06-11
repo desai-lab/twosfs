@@ -6,7 +6,7 @@ import numpy as np
 from scipy.special import betaln
 
 from twosfs.demographicmodel import DemographicModel
-from twosfs.spectra import spectra_from_TreeSequence
+from twosfs.spectra import add_spectra, spectra_from_TreeSequence
 
 
 def parameter_map(prefix: str, default_parameters: dict):
@@ -48,7 +48,7 @@ def simulate_spectra(parameters: dict):
     """
     sims = msprime.simulate(**parameters)
     windows = np.arange(parameters["length"] + 1)
-    return sum(
+    return add_spectra(
         spectra_from_TreeSequence(windows, parameters["recombination_rate"], tseq)
         for tseq in sims
     )

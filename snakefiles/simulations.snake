@@ -1,7 +1,7 @@
 import numpy as np
 import json
 
-from twosfs import load_spectra
+from twosfs.spectra import add_spectra, load_spectra
 from twosfs.simulations import parameter_map, filename2seed, simulate_spectra
 from twosfs.demographicmodel import scaled_demographic_events
 from twosfs.statistics import scan_parameters
@@ -47,7 +47,8 @@ rule fit_models:
 
 rule initial_simulations:
     input:
-        expand("simulations/msprime/{prefix}.npz", prefix=prefixes)
+        expand("simulations/msprime/{prefix}.npz", prefix=prefixes),
+        "simulations/msprime/kingman.npz"
 
 ruleorder: msprime_from_fastNeutrino_modified_recombination > msprime_from_fastNeutrino > msprime
 
@@ -130,7 +131,7 @@ rule add_runs:
     input:
         expand('simulations/.tmp/{prefix}.rep{rep}.npz', rep=range(nruns), allow_missing=True)
     run:
-        total = sum(load_spectra(infn) for infn in input)
+        total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
 
 rule fastNeutrino:

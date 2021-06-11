@@ -1,7 +1,7 @@
 import numpy as np
 import gzip
-from twosfs import load_spectra, spectra_from_sites
-from twosfs.data import get_allele_counts_at_sites
+from twosfs.spectra import add_spectra, load_spectra, spectra_from_sites
+rom twosfs.data import get_allele_counts_at_sites
 
 # ----- Definitions ----- #
 
@@ -65,7 +65,7 @@ rule make_spectra_all:
     output:
         DATA_PATH + "AllChroms.spectra.npz"
     run:
-        total = sum(load_spectra(infn) for infn in input)
+        total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
 
 rule dmel_msprime:
@@ -83,7 +83,7 @@ rule dmel_msprime:
             'random_seed' : filename2seed(output[0]),
         }
         sims = msprime.simulate(**parameters)
-        spectra = sum(spectra_from_TreeSequence(windows,
+        spectra = add_spectra(spectra_from_TreeSequence(windows,
                                                 parameters['recombination_rate'],
                                                 tseq)
                       for tseq in sims)
@@ -95,7 +95,7 @@ rule dmel_add_runs:
     input:
         expand(DATA_PATH + '.tmp/fastNeutrino.{prefix}.rep{rep}.npz', rep=range(10), allow_missing=True)
     run:
-        total = sum(load_spectra(infn) for infn in input)
+        total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
 
 rule dmel_fastNeutrino:
