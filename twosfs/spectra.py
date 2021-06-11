@@ -154,7 +154,7 @@ class Spectra(object):
             self.num_samples == other.num_samples
             and self.windows.shape == other.windows.shape
             and np.all(self.windows == other.windows)
-            and self.recombination_rate == other.recombination_rate
+            and np.isclose(self.recombination_rate, other.recombination_rate)
         )
 
     def __add__(self, other) -> "Spectra":
