@@ -15,6 +15,7 @@ dependencies:
   - scipy
   - pytest
   - hypothesis
+  - pre-commit
   - pip:
       - pyslim
       - -e .
