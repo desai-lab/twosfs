@@ -1,10 +1,10 @@
 """Helper functions for data analysis."""
-from typing import IO, Dict, Iterable
+from typing import IO, Iterable
 
 
 def get_allele_counts_at_sites(
     allele_count_file: IO, sites: Iterable[int], cov_cutoff: int
-) -> Dict[int, int]:
+) -> dict[int, int]:
     """
     Read allele counts at a list of sites.
 

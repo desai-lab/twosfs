@@ -1,7 +1,5 @@
 """Class and functions for manipulating SFS and 2SFS."""
 
-from typing import Dict
-
 import attr
 import attr.validators as v
 import numpy as np
@@ -282,7 +280,7 @@ def spectra_from_sites(
     num_samples: int,
     windows: np.ndarray,
     recombination_rate: float,
-    allele_count_dict: Dict[int, int],
+    allele_count_dict: dict[int, int],
 ) -> Spectra:
     """Create a Spectra from a dictionary of allele counts and positions.
 

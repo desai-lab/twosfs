@@ -1,6 +1,5 @@
 """Helper functions for running msprime simulations."""
 from hashlib import blake2b
-from typing import Dict
 
 import msprime
 import numpy as np
@@ -10,7 +9,7 @@ from twosfs.demographicmodel import DemographicModel
 from twosfs.spectra import spectra_from_TreeSequence
 
 
-def parameter_map(prefix: str, default_parameters: Dict):
+def parameter_map(prefix: str, default_parameters: dict):
     """Convert a file prefix to a set of msprime parameters."""
     if prefix == "kingman":
         parameters = {}
@@ -39,7 +38,7 @@ def parameter_map(prefix: str, default_parameters: Dict):
     return dict(default_parameters, **parameters)
 
 
-def simulate_spectra(parameters: Dict):
+def simulate_spectra(parameters: dict):
     """Run msprime simulations and return a Spectra object.
 
     Parameters

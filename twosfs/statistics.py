@@ -1,6 +1,6 @@
 """Functions for running statistical tests on twosfs."""
 from functools import partial
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 from scipy.stats import cauchy, chi2
@@ -9,13 +9,13 @@ from twosfs.spectra import Spectra, lump_twosfs
 
 
 def twosfs_pdf(
-    spectra: Spectra, dist: Union[int, List[int]], max_k: int, folded: bool
+    spectra: Spectra, dist: Union[int, list[int]], max_k: int, folded: bool
 ) -> np.ndarray:
     """Get the twosfs for segregating sites as a normalized 2D pdf."""
     return lump_twosfs(spectra.normalized_twosfs(folded=folded), max_k)[dist, 1:, 1:]
 
 
-def fisher_test(p_values: np.ndarray) -> Tuple[float, float]:
+def fisher_test(p_values: np.ndarray) -> tuple[float, float]:
     """Compute the Fisher's test statistic and p-value for an array of p-values."""
     fisher_stat = -2 * np.sum(np.log(p_values))
     df = 2 * len(p_values)
@@ -23,7 +23,7 @@ def fisher_test(p_values: np.ndarray) -> Tuple[float, float]:
     return fisher_stat, fisher_p
 
 
-def cauchy_test(p_values: np.ndarray) -> Tuple[float, float]:
+def cauchy_test(p_values: np.ndarray) -> tuple[float, float]:
     """Compute the Cauchy combination test stat and p-value for an array of p-values."""
     cauchy_stat = np.mean(np.tan(0.5 - p_values) - np.pi)
     cauchy_p = cauchy.sf(cauchy_stat)
@@ -42,7 +42,7 @@ def max_ks_distance(pdf1: np.ndarray, pdf2: np.ndarray) -> float:
     )
 
 
-def empirical_pvals(values: np.ndarray, comparisons: List[np.ndarray]):
+def empirical_pvals(values: np.ndarray, comparisons: list[np.ndarray]):
     """Compute the rank of a value in an array of comparisons with pseudocounts."""
     return (1 + np.sum(comparisons > values, axis=0)) / (2 + len(comparisons))
 
@@ -59,13 +59,13 @@ def resample_twosfs_pdf(input_twosfs_pdf: np.ndarray, n_obs: np.ndarray) -> np.n
 def twosfs_test(
     spectra_comp: Spectra,
     spectra_null: Spectra,
-    d_comp: List[int],
-    d_null: List[int],
+    d_comp: list[int],
+    d_null: list[int],
     max_k: int,
     folded: bool,
     n_reps: int,
     resample_comp: bool,
-    num_pairs: Optional[List[int]] = None,
+    num_pairs: Optional[list[int]] = None,
 ) -> np.ndarray:
     """Return array of p-values from the twosfs test. For power calculations."""
     twosfs_comp = twosfs_pdf(spectra_comp, d_comp, max_k, folded)
@@ -93,7 +93,7 @@ def twosfs_test(
     return np.array([fisher_test(samp)[1] for samp in p_comp])
 
 
-def _axis_combinations(n_dims: int) -> List[Tuple]:
+def _axis_combinations(n_dims: int) -> list[tuple]:
     if n_dims <= 0:
         return [()]
     else:
@@ -110,7 +110,7 @@ def _cumsum_all_axes(x: np.ndarray, axis: Optional[int] = None) -> np.ndarray:
         return np.cumsum(_cumsum_all_axes(x, axis=axis - 1), axis=axis)
 
 
-def _all_cdfs(pdf: np.ndarray) -> List[np.ndarray]:
+def _all_cdfs(pdf: np.ndarray) -> list[np.ndarray]:
     flips = [partial(np.flip, axis=axes) for axes in _axis_combinations(pdf.ndim)]
     return [flip(_cumsum_all_axes(flip(pdf))) for flip in flips]
 
@@ -118,11 +118,11 @@ def _all_cdfs(pdf: np.ndarray) -> List[np.ndarray]:
 def scan_parameters(
     spectra_comp: Spectra,
     spectra_null: Spectra,
-    pair_densities: List[int],
-    max_ds: List[int],
+    pair_densities: list[int],
+    max_ds: list[int],
     max_k: int,
     n_reps: int,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Scan parameters and compute `n_reps` pvalues for each."""
     results = []
     for folded in [True, False]:
