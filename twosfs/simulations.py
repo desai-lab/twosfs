@@ -5,37 +5,7 @@ import msprime
 import numpy as np
 from scipy.special import betaln
 
-from twosfs.demographicmodel import DemographicModel
 from twosfs.spectra import add_spectra, spectra_from_TreeSequence
-
-
-def parameter_map(prefix: str, default_parameters: dict):
-    """Convert a file prefix to a set of msprime parameters."""
-    if prefix == "kingman":
-        parameters = {}
-    elif prefix.startswith("xibeta"):
-        alpha = float(prefix.split("alpha=")[1])
-        # Rescale recombination to keep r*T_2 constant
-        r = default_parameters["recombination_rate"] / beta_timescale(alpha)
-        parameters = {
-            "model": msprime.BetaCoalescent(alpha=alpha),
-            "recombination_rate": r,
-        }
-    elif prefix.startswith("expgrowth"):
-        p = {
-            elem.split("=")[0]: float(elem.split("=")[1])
-            for elem in prefix.split("-")[1:]
-        }
-        g = p["g"]
-        t = p["t"]
-        dm = DemographicModel()
-        dm.add_epoch(0.0, 1.0, g)
-        dm.add_epoch(t, np.exp(-g * t))
-        dm.rescale()
-        parameters = {"demographic_events": dm.get_demographic_events()}
-    else:
-        raise KeyError("Simulation prefix not found")
-    return dict(default_parameters, **parameters)
 
 
 def simulate_spectra(parameters: dict):
@@ -46,7 +16,7 @@ def simulate_spectra(parameters: dict):
     parameters : Dict
         Parameters to pass to msprime
     """
-    sims = msprime.simulate(**parameters)
+    sims = msprime.sim_ancestry(**parameters)
     windows = np.arange(parameters["length"] + 1)
     return add_spectra(
         spectra_from_TreeSequence(windows, parameters["recombination_rate"], tseq)
@@ -54,19 +24,23 @@ def simulate_spectra(parameters: dict):
     )
 
 
-def beta_timescale(alpha, pop_size=1.0):
-    """Compute the timescale of the beta coalescent."""
-    m = 2 + np.exp(alpha * np.log(2) + (1 - alpha) * np.log(3) - np.log(alpha - 1))
-    N = pop_size / 2
-    # The initial 2 is so that the rescaling by beta_timescale
-    # gives T_2 = 4
-    ret = 2 * np.exp(
-        alpha * np.log(m)
-        + (alpha - 1) * np.log(N)
+def expected_t2_beta(alpha, pop_size=1.0):
+    """Compute the mean coalescent time of the diploid beta coalescent."""
+    m = 2 + np.exp(alpha * np.log(2) - (alpha - 1) * np.log(3) - np.log(alpha - 1))
+    return np.exp(
+        np.log(4)
+        + alpha * np.log(m)
+        + (alpha - 1) * np.log(pop_size / 2)
         - np.log(alpha)
         - betaln(2 - alpha, alpha)
     )
-    return ret
+
+
+def sims2pi(sims, num_replicates):
+    """Compute pairwise diversity for a generator of tree sequences."""
+    pi = sum(tseq.diversity(mode="branch") for tseq in sims)
+    pi /= num_replicates
+    return pi
 
 
 def filename2seed(filename: str):
@@ -100,10 +74,3 @@ def filename2seed(filename: str):
     """
     h = blake2b(filename.encode(), digest_size=4)
     return int.from_bytes(h.digest(), "big")
-
-
-def sims2pi(sims, num_replicates):
-    """Compute pairwise diversity (T_2) for a generator of tree sequences."""
-    pi = sum(tseq.diversity(mode="branch") for tseq in sims)
-    pi /= num_replicates
-    return pi
