@@ -8,8 +8,8 @@ dependencies:
   - pip
   - snakemake~=5.26
   - matplotlib~=3.3
-  - jupytext~=1.5
-  - jupyterlab~=2.1
+  - jupytext~=1.11
+  - jupyterlab~=3.0
   - nodejs
   - numpy
   - scipy
