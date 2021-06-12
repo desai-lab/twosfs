@@ -53,6 +53,7 @@ def simulate_spectra(
     model_parameters: dict,
     msprime_parameters: dict,
     scaled_recombination_rate: float,
+    random_seed: int,
 ) -> Spectra:
     """Simulate spectra using msprime coalescent simulations."""
     coal_model, demography, t2 = _dispatch_model(model, model_parameters)
@@ -61,6 +62,7 @@ def simulate_spectra(
         model=coal_model,
         demography=demography,
         recombination_rate=r,
+        random_seed=random_seed,
         **msprime_parameters
     )
     windows = np.arange(msprime_parameters["sequence_length"] + 1)
@@ -86,7 +88,7 @@ def sims2pi(sims, num_replicates):
     return pi
 
 
-def filename2seed(filename: str):
+def filename2seed(filename: str) -> int:
     """Generate a valid numpy seed by hashing a filename.
 
     Parameters

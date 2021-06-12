@@ -5,15 +5,13 @@ from twosfs.spectra import add_spectra, load_spectra
 from twosfs.simulations import filename2seed, simulate_spectra, list_rounded_parameters, make_parameter_string
 from twosfs.statistics import scan_parameters
 
-# nruns = 100
-nruns = 2
+nruns = 100
 scaled_recombination_rate = 0.1 # = 2 r * mean_coalescence_time
 msprime_parameters = {
     "samples": 50, # number of diploid samples
     "ploidy": 2,
     "sequence_length": 100,
-    "num_replicates": 100,
-    # "num_replicates": 10000,
+    "num_replicates": 10000,
 }
 
 
@@ -58,6 +56,7 @@ rule simulate_initial_spectra:
             model_parameters=json.loads(wildcards.parameter_string),
             msprime_parameters=msprime_parameters,
             scaled_recombination_rate=scaled_recombination_rate,
+            random_seed=filename2seed(output[0]),
             )
         spectra.save(output[0])
 
