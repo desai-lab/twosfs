@@ -186,9 +186,13 @@ class Spectra(object):
         else:
             return normed
 
-    def t2(self) -> float:
-        """Return the pairwise coalescence time (proportional to Tajima's pi)."""
-        return t2(self.onesfs / self.num_sites)
+    def tajimas_pi(self) -> float:
+        """Return the Tajima's pi (average pairwise diversity)."""
+        return tajimas_pi(self.onesfs / self.num_sites)
+
+    def scaled_recombination_rate(self) -> float:
+        """Return pi * r (or 2 * E[T_2] * r)."""
+        return self.tajimas_pi() * self.recombination_rate
 
     def export_to_fastNeutrino(
         self, filename: str, sfs_0: float = 100.0, folded: bool = False
@@ -368,7 +372,7 @@ def lump_twosfs(twosfs: np.ndarray, kmax: int) -> np.ndarray:
     return twosfs_lumped
 
 
-def t2(onesfs: np.ndarray) -> float:
+def tajimas_pi(onesfs: np.ndarray) -> float:
     """Compute the average pairwise diversity from an SFS."""
     n = len(onesfs) - 1
     k = np.arange(n + 1)
@@ -390,8 +394,8 @@ def export_to_fastNeutrino(filename: str, sfs, sfs_0=100):
         (Default=100).
     """
     n = len(sfs) - 1
-    # Normalize sfs to have T_2 = 4.
-    sfs *= 4 / t2(sfs)
+    # Normalize sfs to have pi = 4.
+    sfs *= 4 / tajimas_pi(sfs)
     sfs[0] = sfs_0
     with open(filename, "w") as outfile:
         outfile.write(f"{n}\t1\n")
