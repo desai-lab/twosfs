@@ -1,7 +1,7 @@
 import numpy as np
 import gzip
 from twosfs.spectra import add_spectra, load_spectra, spectra_from_sites
-rom twosfs.data import get_allele_counts_at_sites
+from twosfs.data import get_allele_counts_at_sites
 
 # ----- Definitions ----- #
 
