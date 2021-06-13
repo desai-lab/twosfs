@@ -13,7 +13,7 @@
   ],
   "growth_rates": [0.5, 1.0, 2.0],
   "end_times": [0.5, 1.0, 2.0],
-  "rec_factors": [1.0],
+  "rec_factors": [0.71, 0.79, 0.89, 1.0, 1.12, 1.26, 1.41],
   "fitted_demographies": ["3Epoch"],
   "fastNeutrino_maxB": 20,
   "fastNeutrino_maxRandomRestarts": 100
