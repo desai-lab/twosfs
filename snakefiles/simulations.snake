@@ -5,7 +5,7 @@ from twosfs.spectra import add_spectra, load_spectra
 from twosfs.simulations import filename2seed, simulate_spectra, list_rounded_parameters, make_parameter_string
 from twosfs.statistics import scan_parameters
 
-nruns = 100
+nruns = 100 # number of runs of each msprime job
 scaled_recombination_rate = 0.1 # = 2 r * mean_coalescence_time
 msprime_parameters = {
     "samples": 50, # number of diploid samples
@@ -14,17 +14,16 @@ msprime_parameters = {
     "num_replicates": 10000,
 }
 
-
 d_alpha = 0.05
 ALPHAS = list_rounded_parameters(np.arange(1 + d_alpha, 2.0, d_alpha))
 GS = [0.5, 1.0, 2.0]
 TS = [0.5, 1.0, 2.0]
 RS = list_rounded_parameters(np.logspace(-1, 1, 5, base=2))
 
-prefixes = expand(["xibeta-alpha={alpha}", "expgrowth-g={g}-t={t}"], alpha=ALPHAS, g=GS, t=TS)
-models = ['3Epoch']
+fitted_demographies = ["3Epoch"]
 
 initial_spectra_file = "simulations/spectra/model={model}.params={parameter_string}.rep={rep}.npz"
+fitted_model_file = "simulations/fitted_models/model={model}.params={parameter_string}.demography={demo}.txt"
 
 rule simulate_initial_spectra_all:
     input:
@@ -44,6 +43,26 @@ rule simulate_initial_spectra_all:
                     for t in TS for g in GS],
                 rep="all",
                 )
+
+rule fit_demographies_all:
+    input:
+        expand(fitted_model_file,
+                model="const",
+                parameter_string="{}",
+                demo=fitted_demographies,
+                ),
+        expand(fitted_model_file,
+                model="beta",
+                parameter_string=[make_parameter_string(alpha=a) for a in ALPHAS],
+                demo=fitted_demographies,
+                ),
+        expand(fitted_model_file,
+                model="exp",
+                parameter_string=[make_parameter_string(end_time=t, growth_rate=g)
+                    for t in TS for g in GS],
+                demo=fitted_demographies,
+                )
+
 
 rule simulate_initial_spectra:
     output:
@@ -73,56 +92,35 @@ rule add_runs:
         total.save(output[0])
 
 
+rule fastNeutrino:
+    input:
+        datafile = "simulations/.tmp/{prefix}.sfs.txt",
+        modelfile = "twosfs/models/{demo}.txt"
+    output:
+        "simulations/fitted_models/{prefix}.demography={demo}.txt"
+    log:
+        "log/fastNeutrino.{prefix}.{demo}.log"
+    shell:
+        "fastNeutrino --maxB 20 --maxRandomRestarts 100 "
+        "--modelFile {input.modelfile} "
+        "--inferredModelOutputFile '{output}' "
+        "< '{input.datafile}' "
+        "> '{log}'"
+
+
+rule fastNeutrinoInput:
+    input:
+        simulation_file = 'simulations/spectra/{prefix}.rep=all.npz'
+    output:
+        sfs_file = temp("simulations/.tmp/{prefix}.sfs.txt")
+    run:
+        spectra = load_spectra(input.simulation_file)
+        spectra.export_to_fastNeutrino(output.sfs_file)
+
 ### OLD STUFF
 
 
-rule compute_all_pvalues:
-    input:
-        expand("simulations/pvalues/{prefix}.{model}.rec={r_factor}.json",
-               prefix=prefixes, model=models, r_factor=RS),
-        expand("simulations/pvalues/{prefix}.{model}.json",
-               prefix=prefixes, model=models, r_factor=RS)
-
-rule simulate_models_recombination:
-    input:
-        expand("simulations/msprime/fastNeutrino.{prefix}.{model}.rec={r_factor}.npz",
-               prefix=prefixes, model=models, r_factor=RS)
-
-rule simulate_models:
-    input:
-        expand("simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
-               prefix=prefixes, model=models)
-
-rule fit_models:
-    input:
-        expand("simulations/fastNeutrino/{prefix}.{model}.txt",
-               prefix=prefixes, model=models)
-
-rule initial_simulations:
-    input:
-        expand("simulations/msprime/{prefix}.npz", prefix=prefixes),
-        "simulations/msprime/kingman.npz"
-
 ruleorder: msprime_from_fastNeutrino_modified_recombination > msprime_from_fastNeutrino > msprime
-
-rule msprime_kingman:
-    output:
-        temp('simulations/.tmp/kingman.rep{rep}.npz')
-    run:
-        parameters = parameter_map(wildcards.prefix, default_parameters)
-        parameters['random_seed'] = filename2seed(output[0])
-        spectra = simulate_spectra(parameters)
-        spectra.save(output[0])
-
-
-rule msprime:
-    output:
-        temp('simulations/.tmp/{prefix}.rep{rep}.npz')
-    run:
-        parameters = parameter_map(wildcards.prefix, default_parameters)
-        parameters['random_seed'] = filename2seed(output[0])
-        spectra = simulate_spectra(parameters)
-        spectra.save(output[0])
 
 max_k = 20
 pair_densities = [100, 1000, 10000]
@@ -187,27 +185,3 @@ rule msprime_from_fastNeutrino_modified_recombination:
         parameters['random_seed'] = filename2seed(output[0])
         spectra = simulate_spectra(parameters)
         spectra.save(output[0])
-
-rule fastNeutrino:
-    input:
-        datafile = "simulations/.tmp/{prefix}.sfs.txt",
-        modelfile = "twosfs/models/{model}.txt"
-    output:
-        "simulations/fastNeutrino/{prefix}.{model}.txt"
-    log:
-        "log/fastNeutrino.{prefix}.{model}.log"
-    shell:
-        "fastNeutrino --maxB 20 --maxRandomRestarts 100 "
-        "--modelFile {input.modelfile} "
-        "--inferredModelOutputFile {output} "
-        "< {input.datafile} "
-        "> {log}"
-
-rule fastNeutrinoInput:
-    input:
-        simulation_file = 'simulations/msprime/{prefix}.npz'
-    output:
-        sfs_file = temp("simulations/.tmp/{prefix}.sfs.txt")
-    run:
-        spectra = load_spectra(input.simulation_file)
-        spectra.export_to_fastNeutrino(output.sfs_file)
