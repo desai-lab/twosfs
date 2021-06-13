@@ -17,6 +17,7 @@ class Configuration:
     alphas: list[float]
     growth_rates: list[float]
     end_times: list[float]
+    rec_factors: list[float]
     fitted_demographies: list[str]
     fastNeutrino_maxB: int
     fastNeutrino_maxRandomRestarts: int

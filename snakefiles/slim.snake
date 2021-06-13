@@ -11,7 +11,6 @@ rule run_SLiM:
     shell:
          "slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s}/100 -d gamma={wildcards.g}*1e-8 slim/slim_sim.txt"
 
-ruleorder: msprime_from_fastNeutrino > spectra_from_slim
 
 rule spectra_from_slim:
     output:

@@ -35,6 +35,14 @@ def _dispatch_model(
             growth_rate=model_parameters["growth_rate"],
         )
         t2 = expected_t2_demography(demography)
+    elif model == "pwc":
+        coal_model = msprime.StandardCoalescent()
+        demography = make_pwc_demography(
+            sizes=model_parameters["sizes"],
+            start_times=model_parameters["start_times"],
+            initial_size=model_parameters["initial_size"],
+        )
+        t2 = expected_t2_demography(demography)
     elif model == "beta":
         coal_model = msprime.BetaCoalescent(alpha=model_parameters["alpha"])
         demography = None

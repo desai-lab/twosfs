@@ -2,14 +2,16 @@ import numpy as np
 import json
 
 from twosfs.config import configuration_from_json
-from twosfs.spectra import add_spectra, load_spectra
+from twosfs.demography import read_fastNeutrino_output
 from twosfs.simulations import filename2seed, simulate_spectra, model_prefixes
+from twosfs.spectra import add_spectra, load_spectra
 from twosfs.statistics import scan_parameters
 
 config = configuration_from_json("simulation_parameters.json")
 
 initial_spectra_file = "simulations/spectra/{prefix}.rep={rep}.npz"
 fitted_demography_file = "simulations/fitted_demographies/{prefix}.demography={demo}.txt"
+fitted_spectra_file = "simulations/fitted_spectra/{prefix}.demography={demo}.rec_factor={rec_factor}.rep={rep}.npz"
 
 rule simulate_initial_spectra_all:
     input:
@@ -23,6 +25,15 @@ rule fit_demographies_all:
         expand(fitted_demography_file,
                 prefix=model_prefixes(config),
                 demo=config.fitted_demographies,
+                )
+
+rule simulate_fitted_spectra_all:
+    input:
+        expand(fitted_spectra_file,
+                prefix=model_prefixes(config),
+                demo=config.fitted_demographies,
+                rec_factor=config.rec_factors,
+                rep="all",
                 )
 
 rule simulate_initial_spectra:
@@ -41,6 +52,27 @@ rule simulate_initial_spectra:
         spectra.save(output[0])
 
 
+rule simulate_fitted_spectra:
+    output:
+        temp(fitted_spectra_file)
+    input:
+        fitted_demography_file
+    wildcard_constraints:
+        rep="\d+"
+    run:
+        model_parameters = dict(
+                zip(("sizes", "start_times", "initial_size"),
+                    read_fastNeutrino_output(input[0])))
+        r = config.scaled_recombination_rate * float(wildcards.rec_factor)
+        spectra = simulate_spectra(
+            model="pwc",
+            model_parameters=model_parameters,
+            msprime_parameters=config.msprime_parameters,
+            scaled_recombination_rate=r,
+            random_seed=filename2seed(output[0]),
+            )
+        spectra.save(output[0])
+
 rule add_runs:
     output:
         'simulations/{dir}/{prefix}.rep=all.npz'
@@ -51,7 +83,6 @@ rule add_runs:
     run:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
-
 
 rule fit_demographies:
     input:
@@ -69,7 +100,6 @@ rule fit_demographies:
         "--inferredModelOutputFile '{output}' "
         "< '{input.datafile}' "
         "> '{log}'"
-
 
 rule fastNeutrinoInput:
     input:
@@ -112,34 +142,3 @@ rule compute_pvalues_recombination:
         results = scan_parameters(spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps)
         with open(output[0], "w") as outfile:
             json.dump(results, outfile)
-
-rule msprime_from_fastNeutrino:
-    input:
-        "simulations/fastNeutrino/{prefix}.txt"
-    output:
-        temp('simulations/.tmp/fastNeutrino.{prefix}.rep{rep}.npz')
-    run:
-        # Use Kingman parameters, but add demographic events properly scaled
-        parameters = parameter_map('kingman', default_parameters)
-        parameters['demographic_events'] = scaled_demographic_events(input[0])
-        parameters['random_seed'] = filename2seed(output[0])
-        spectra = simulate_spectra(parameters)
-        spectra.save(output[0])
-
-
-rule msprime_from_fastNeutrino_modified_recombination:
-    input:
-        "simulations/fastNeutrino/{prefix}.txt"
-    output:
-        temp('simulations/.tmp/fastNeutrino.{prefix}.rec={r_factor}.rep{rep}.npz')
-    run:
-        # Use Kingman parameters, but add demographic events properly scaled
-        # modify recombination rate by r_factor
-        # Use shorter sequences (25 bases)
-        parameters = parameter_map('kingman', default_parameters)
-        parameters['demographic_events'] = scaled_demographic_events(input[0])
-        parameters['recombination_rate'] *= float(wildcards.r_factor)
-        parameters['length'] = 25
-        parameters['random_seed'] = filename2seed(output[0])
-        spectra = simulate_spectra(parameters)
-        spectra.save(output[0])
