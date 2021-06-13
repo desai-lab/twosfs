@@ -1,0 +1,19 @@
+{
+  "nruns": 100,
+  "scaled_recombination_rate": 0.1,
+  "msprime_parameters": {
+    "samples": 50,
+    "ploidy": 2,
+    "sequence_length": 100,
+    "num_replicates": 10000
+  },
+  "alphas": [
+    1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45, 1.5, 1.55, 1.6, 1.65, 1.7,
+    1.75, 1.8, 1.85, 1.9, 1.95
+  ],
+  "growth_rates": [0.5, 1.0, 2.0],
+  "end_times": [0.5, 1.0, 2.0],
+  "fitted_demographies": ["3Epoch"],
+  "fastNeutrino_maxB": 20,
+  "fastNeutrino_maxRandomRestarts": 100
+}

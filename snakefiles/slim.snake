@@ -11,7 +11,6 @@ rule run_SLiM:
     shell:
          "slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s}/100 -d gamma={wildcards.g}*1e-8 slim/slim_sim.txt"
 
-ruleorder: spectra_from_slim > msprime
 ruleorder: msprime_from_fastNeutrino > spectra_from_slim
 
 rule spectra_from_slim:
@@ -28,4 +27,3 @@ rule spectra_from_slim:
         tseq = get_tseq(str(input), sample_size, num_bp=length)
         spectra = spectra_from_TreeSequences(tseq, sample_size, length=100, recombination_rate=1e-8)
         spectra.save(output[0])
-

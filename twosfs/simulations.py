@@ -7,6 +7,7 @@ import msprime
 import numpy as np
 from scipy.special import betaln
 
+from twosfs.config import Configuration
 from twosfs.demography import (
     expected_t2_demography,
     make_exp_demography,
@@ -18,11 +19,6 @@ from twosfs.spectra import Spectra, add_spectra, spectra_from_TreeSequence
 def list_rounded_parameters(params: Iterable[float], ndigits: int = 2) -> list[float]:
     """Round each parameter in params to ndigits places and return a list."""
     return list(map(lambda x: round(x, ndigits), params))
-
-
-def make_parameter_string(**params) -> str:
-    """Convert parameter dictionary to json string without whitespace."""
-    return json.dumps(params, separators=(",", ":"))
 
 
 def _dispatch_model(
@@ -119,3 +115,27 @@ def filename2seed(filename: str) -> int:
     """
     h = blake2b(filename.encode(), digest_size=4)
     return int.from_bytes(h.digest(), "big")
+
+
+def make_parameter_string(**params) -> str:
+    """Convert parameter dictionary to json string without whitespace."""
+    return json.dumps(params, separators=(",", ":"))
+
+
+def model_prefixes(config: Configuration) -> list[str]:
+    """Make list of file prefixes for all models and parameters."""
+    template = "model={model}.params={parameter_string}"
+    prefix_const = [template.format(model="const", parameter_string="{}")]
+    prefix_betas = [
+        template.format(model="beta", parameter_string=make_parameter_string(alpha=a))
+        for a in config.alphas
+    ]
+    prefix_exp = [
+        template.format(
+            model="exp",
+            parameter_string=make_parameter_string(end_time=t, growth_rate=g),
+        )
+        for t in config.end_times
+        for g in config.growth_rates
+    ]
+    return prefix_const + prefix_betas + prefix_exp
