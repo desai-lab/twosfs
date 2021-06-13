@@ -1,10 +1,14 @@
 """Defines a class of demographic models for translating and scaling."""
+import os
 from dataclasses import dataclass
+from typing import Union
 
 from msprime import Demography
 
 
-def make_exp_demography(growth_rate: float, end_time: float, initial_size=1.0):
+def make_exp_demography(
+    growth_rate: float, end_time: float, initial_size=1.0
+) -> Demography:
     """Make an msprime demography with exp growth extending to end_time in the past."""
     demography = Demography()
     demography.add_population(initial_size=initial_size, growth_rate=growth_rate)
@@ -12,7 +16,9 @@ def make_exp_demography(growth_rate: float, end_time: float, initial_size=1.0):
     return demography
 
 
-def make_pwc_demography(sizes: list[float], start_times: list[float], initial_size=1.0):
+def make_pwc_demography(
+    sizes: list[float], start_times: list[float], initial_size=1.0
+) -> Demography:
     """Make an msprime demography with piecewise constant population size."""
     demography = Demography()
     demography.add_population(initial_size=initial_size)
@@ -29,24 +35,26 @@ def expected_t2_demography(demography: Demography) -> float:
 
 
 @dataclass
-class FastNeutrinoEpoch:
+class _FastNeutrinoEpoch:
     """Epochs in the fastNeutrino demographic model."""
 
     size: float
     end_time: float
 
 
-def _parse_line(line: str) -> FastNeutrinoEpoch:
+def _parse_line(line: str) -> _FastNeutrinoEpoch:
     if line.startswith("c"):
         # Constant-N epoch
         n, t = map(float, line.split()[-2:])
     else:
         raise ValueError("Warning, bad line: " + line.strip())
-    return FastNeutrinoEpoch(size=n, end_time=t)
+    return _FastNeutrinoEpoch(size=n, end_time=t)
 
 
-def read_fastNeutrino_output(model_fn) -> Demography:
-    """Read epochs from a fastNeutrino fitted parameters output file."""
+def read_fastNeutrino_output(
+    model_fn: Union[str, bytes, os.PathLike],
+) -> tuple[list[float], list[float], float]:
+    """Read piecwise constant parameters from a fastNeutrino output file."""
     with open(model_fn) as modelfile:
         # Discard the header
         _ = modelfile.readline()
@@ -57,4 +65,4 @@ def read_fastNeutrino_output(model_fn) -> Demography:
     initial_size = epochs[0].size / 2
     sizes = [epoch.size / 2 for epoch in epochs[1:]] + [n_anc / 2]
     start_times = [epoch.end_time for epoch in epochs]
-    return make_pwc_demography(sizes, start_times, initial_size=initial_size)
+    return sizes, start_times, initial_size
