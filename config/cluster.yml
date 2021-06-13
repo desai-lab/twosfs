@@ -2,9 +2,9 @@ __default__:
   time: 01:00:00
   mem: 1G
   ncores: 1
-  name: "{rule}.{wildcards}"
-  out: "log/{rule}.{wildcards}-%j.out"
-  err: "log/{rule}.{wildcards}-%j.err"
+  name: "{rule}-%j"
+  out: "log/{rule}-%j.out"
+  err: "log/{rule}-%j.err"
 
 cleanup:
   name: cleanup
