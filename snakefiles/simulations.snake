@@ -10,37 +10,46 @@ from twosfs.statistics import scan_parameters
 config = configuration_from_json("simulation_parameters.json")
 
 initial_spectra_file = "simulations/spectra/{prefix}.rep={rep}.npz"
-fitted_demography_file = "simulations/fitted_demographies/{prefix}.demography={demo}.txt"
+fitted_demography_file = (
+    "simulations/fitted_demographies/{prefix}.demography={demo}.txt"
+)
 fitted_spectra_file = "simulations/fitted_spectra/{prefix}.demography={demo}.rec_factor={rec_factor}.rep={rep}.npz"
+
 
 rule simulate_initial_spectra_all:
     input:
-        expand(initial_spectra_file,
-                prefix=model_prefixes(config),
-                rep="all",
-                )
+        expand(
+            initial_spectra_file,
+            prefix=model_prefixes(config),
+            rep="all",
+        ),
+
 
 rule fit_demographies_all:
     input:
-        expand(fitted_demography_file,
-                prefix=model_prefixes(config),
-                demo=config.fitted_demographies,
-                )
+        expand(
+            fitted_demography_file,
+            prefix=model_prefixes(config),
+            demo=config.fitted_demographies,
+        ),
+
 
 rule simulate_fitted_spectra_all:
     input:
-        expand(fitted_spectra_file,
-                prefix=model_prefixes(config),
-                demo=config.fitted_demographies,
-                rec_factor=config.rec_factors,
-                rep="all",
-                )
+        expand(
+            fitted_spectra_file,
+            prefix=model_prefixes(config),
+            demo=config.fitted_demographies,
+            rec_factor=config.rec_factors,
+            rep="all",
+        ),
+
 
 rule simulate_initial_spectra:
     output:
-        temp(initial_spectra_file)
+        temp(initial_spectra_file),
     wildcard_constraints:
-        rep="\d+"
+        rep="\d+",
     run:
         spectra = simulate_spectra(
             model=wildcards.model,
@@ -48,21 +57,24 @@ rule simulate_initial_spectra:
             msprime_parameters=config.msprime_parameters,
             scaled_recombination_rate=config.scaled_recombination_rate,
             random_seed=filename2seed(output[0]),
-            )
+        )
         spectra.save(output[0])
 
 
 rule simulate_fitted_spectra:
     output:
-        temp(fitted_spectra_file)
+        temp(fitted_spectra_file),
     input:
-        fitted_demography_file
+        fitted_demography_file,
     wildcard_constraints:
-        rep="\d+"
+        rep="\d+",
     run:
         model_parameters = dict(
-                zip(("sizes", "start_times", "initial_size"),
-                    read_fastNeutrino_output(input[0])))
+            zip(
+                ("sizes", "start_times", "initial_size"),
+                read_fastNeutrino_output(input[0]),
+            )
+        )
         r = config.scaled_recombination_rate * float(wildcards.rec_factor)
         spectra = simulate_spectra(
             model="pwc",
@@ -70,45 +82,54 @@ rule simulate_fitted_spectra:
             msprime_parameters=config.msprime_parameters,
             scaled_recombination_rate=r,
             random_seed=filename2seed(output[0]),
-            )
+        )
         spectra.save(output[0])
+
 
 rule add_runs:
     output:
-        'simulations/{dir}/{prefix}.rep=all.npz'
+        "simulations/{dir}/{prefix}.rep=all.npz",
     input:
-        expand('simulations/{dir}/{prefix}.rep={rep}.npz',
-                rep=range(config.nruns),
-                allow_missing=True)
+        expand(
+            "simulations/{dir}/{prefix}.rep={rep}.npz",
+            rep=range(config.nruns),
+            allow_missing=True,
+        ),
     run:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
 
+
 rule fit_demographies:
     input:
-        datafile = "simulations/.tmp/{prefix}.sfs.txt",
-        modelfile = "twosfs/models/{demo}.txt"
+        datafile="simulations/.tmp/{prefix}.sfs.txt",
+        modelfile="twosfs/models/{demo}.txt",
     output:
-        fitted_demography_file
+        fitted_demography_file,
+    params:
+        maxB=config.fastNeutrino_maxB,
+        maxRandomRestarts=config.fastNeutrino_maxRandomRestarts,
     log:
-        "log/fastNeutrino.{prefix}.{demo}.log"
+        "log/fastNeutrino.{prefix}.{demo}.log",
     shell:
         "fastNeutrino "
-        "--maxB {config.fastNeutrino_maxB} "
-        "--maxRandomRestarts {config.fastNeutrino_maxRandomRestarts} "
+        "--maxB {params.maxB} "
+        "--maxRandomRestarts {params.maxRandomRestarts} "
         "--modelFile {input.modelfile} "
         "--inferredModelOutputFile '{output}' "
         "< '{input.datafile}' "
         "> '{log}'"
 
+
 rule fastNeutrinoInput:
     input:
-        simulation_file = 'simulations/spectra/{prefix}.rep=all.npz'
+        simulation_file="simulations/spectra/{prefix}.rep=all.npz",
     output:
-        sfs_file = temp("simulations/.tmp/{prefix}.sfs.txt")
+        sfs_file=temp("simulations/.tmp/{prefix}.sfs.txt"),
     run:
         spectra = load_spectra(input.simulation_file)
         spectra.export_to_fastNeutrino(output.sfs_file)
+
 
 ### OLD STUFF
 
@@ -117,28 +138,34 @@ pair_densities = [100, 1000, 10000]
 max_ds = [2, 6, 11, 16]
 n_reps = 1000
 
+
 rule compute_pvalues:
     input:
         "simulations/msprime/{prefix}.npz",
         "simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
     output:
-        "simulations/pvalues/{prefix}.{model}.json"
+        "simulations/pvalues/{prefix}.{model}.json",
     run:
         spectra_comp = load_spectra(input[0])
         spectra_null = load_spectra(input[1])
-        results = scan_parameters(spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps)
+        results = scan_parameters(
+            spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps
+        )
         with open(output[0], "w") as outfile:
             json.dump(results, outfile)
+
 
 rule compute_pvalues_recombination:
     input:
         "simulations/msprime/fastNeutrino.{prefix}.{model}.rec={r_factor}.npz",
         "simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
     output:
-        "simulations/pvalues/{prefix}.{model}.rec={r_factor}.json"
+        "simulations/pvalues/{prefix}.{model}.rec={r_factor}.json",
     run:
         spectra_comp = load_spectra(input[0])
         spectra_null = load_spectra(input[1])
-        results = scan_parameters(spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps)
+        results = scan_parameters(
+            spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps
+        )
         with open(output[0], "w") as outfile:
             json.dump(results, outfile)
