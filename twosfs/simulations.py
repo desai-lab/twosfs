@@ -1,5 +1,4 @@
 """Helper functions for running msprime simulations."""
-import json
 from hashlib import blake2b
 from typing import Iterable
 
@@ -7,7 +6,6 @@ import msprime
 import numpy as np
 from scipy.special import betaln
 
-from twosfs.config import Configuration
 from twosfs.demography import (
     expected_t2_demography,
     make_exp_demography,
@@ -67,7 +65,7 @@ def simulate_spectra(
         demography=demography,
         recombination_rate=r,
         random_seed=random_seed,
-        **msprime_parameters
+        **msprime_parameters,
     )
     windows = np.arange(msprime_parameters["sequence_length"] + 1)
     return add_spectra(spectra_from_TreeSequence(windows, r, tseq) for tseq in sims)
@@ -123,27 +121,3 @@ def filename2seed(filename: str) -> int:
     """
     h = blake2b(filename.encode(), digest_size=4)
     return int.from_bytes(h.digest(), "big")
-
-
-def make_parameter_string(**params) -> str:
-    """Convert parameter dictionary to json string without whitespace."""
-    return json.dumps(params, separators=(",", ":"))
-
-
-def model_prefixes(config: Configuration) -> list[str]:
-    """Make list of file prefixes for all models and parameters."""
-    template = "model={model}.params={parameter_string}"
-    prefix_const = [template.format(model="const", parameter_string="{}")]
-    prefix_betas = [
-        template.format(model="beta", parameter_string=make_parameter_string(alpha=a))
-        for a in config.alphas
-    ]
-    prefix_exp = [
-        template.format(
-            model="exp",
-            parameter_string=make_parameter_string(end_time=t, growth_rate=g),
-        )
-        for t in config.end_times
-        for g in config.growth_rates
-    ]
-    return prefix_const + prefix_betas + prefix_exp

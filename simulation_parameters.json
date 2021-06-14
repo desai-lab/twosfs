@@ -1,4 +1,9 @@
 {
+  "initial_spectra_file": "simulations/spectra/model={model}.params={params}.rep={rep}.npz",
+  "temp_sfs_file": "simulations/.tmp/model={model}.params={params}.sfs.txt",
+  "fitted_demography_file": "simulations/fitted_demographies/model={model}.params={params}.demography={demo}.txt",
+  "fitted_spectra_file": "simulations/fitted_spectra/model={model}.params={params}.demography={demo}.rec_factor={rec_factor}.rep={rep}.npz",
+  "demographic_model_file": "twosfs/models/{demo}.txt",
   "nruns": 100,
   "scaled_recombination_rate": 0.1,
   "msprime_parameters": {
