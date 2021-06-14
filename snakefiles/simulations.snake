@@ -12,17 +12,17 @@ config = configuration_from_json("simulation_parameters.json")
 
 rule simulate_initial_spectra_all:
     input:
-        config.initial_spectra_files(),
+        list(config.initial_spectra_files()),
 
 
 rule fit_demographies_all:
     input:
-        config.fitted_demography_files(),
+        list(config.fitted_demography_files()),
 
 
 rule simulate_fitted_spectra_all:
     input:
-        config.fitted_spectra_files(),
+        list(config.fitted_spectra_files()),
 
 
 rule simulate_initial_spectra:

@@ -36,39 +36,53 @@ class Configuration:
             for t in self.end_times:
                 yield "exp", dict(end_time=t, growth_rate=g)
 
-    def initial_spectra_files(self) -> list[str]:
-        """List all initial spectra files."""
-        return [
-            self.initial_spectra_file.format(
-                model=model, params=make_parameter_string(params), rep="all"
-            )
-            for model, params in self.iter_models()
-        ]
+    def format_initial_spectra_file(self, model: str, params: dict) -> str:
+        """Get an initial spectra filename."""
+        return self.initial_spectra_file.format(
+            model=model, params=make_parameter_string(params), rep="all"
+        )
 
-    def fitted_demography_files(self) -> list[str]:
-        """List all fitted demography files."""
-        return [
-            self.fitted_demography_file.format(
-                model=model, params=make_parameter_string(params), demo=demo
-            )
-            for model, params in self.iter_models()
-            for demo in self.fitted_demographies
-        ]
+    def format_fitted_demography_file(self, model: str, params: dict, demo: str) -> str:
+        """Get a fitted demography filename."""
+        return self.fitted_demography_file.format(
+            model=model, params=make_parameter_string(params), demo=demo
+        )
 
-    def fitted_spectra_files(self) -> list[str]:
-        """List all fitted spectra files."""
-        return [
-            self.fitted_spectra_file.format(
-                model=model,
-                params=make_parameter_string(params),
-                demo=demo,
-                rec_factor=rec_factor,
-                rep="all",
-            )
-            for model, params in self.iter_models()
-            for demo in self.fitted_demographies
-            for rec_factor in self.rec_factors
-        ]
+    def format_fitted_spectra_file(
+        self, model: str, params: dict, demo: str, rec_factor: float
+    ) -> str:
+        """Get a fitted spectra filename."""
+        return self.fitted_spectra_file.format(
+            model=model,
+            params=make_parameter_string(params),
+            demo=demo,
+            rec_factor=rec_factor,
+            rep="all",
+        )
+
+    def iter_demos(self) -> Iterator[tuple[str, dict, str]]:
+        """Return an iterator over all model-parameter-demography combinations."""
+        for model, params in self.iter_models():
+            for demo in self.fitted_demographies:
+                yield model, params, demo
+
+    def iter_all(self) -> Iterator[tuple[str, dict, str, float]]:
+        """Return an iterator over all model-parameter-demography-rec combinations."""
+        for model, params, demo in self.iter_demos():
+            for rec_factor in self.rec_factors:
+                yield model, params, demo, rec_factor
+
+    def initial_spectra_files(self) -> Iterator[str]:
+        """Iterate all initial spectra files."""
+        return map(lambda x: self.format_initial_spectra_file(*x), self.iter_models())
+
+    def fitted_demography_files(self) -> Iterator[str]:
+        """Iterate all fitted demography files."""
+        return map(lambda x: self.format_fitted_demography_file(*x), self.iter_demos())
+
+    def fitted_spectra_files(self) -> Iterator[str]:
+        """Iterate all fitted spectra files."""
+        return map(lambda x: self.format_fitted_spectra_file(*x), self.iter_all())
 
 
 def configuration_from_json(config_file: Union[str, bytes, PathLike]):
