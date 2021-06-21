@@ -1,31 +1,44 @@
 import numpy as np
 import msprime
+import random
 from slim.sfs_slim import get_tseq
+from twosfs.simulations import filename2seed
+
+genome_length = int(1e5)
 
 rule run_SLiM:
     output:
-        'simulations/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
-    params:
-        time = 30,
+        'simulations/tree_files/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
+    resources:
+        time = 500,
         mem = 1000,
     shell:
-         "slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s}/100 -d gamma={wildcards.g}*1e-8 slim/slim_sim.txt"
+        "slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s}/100 -d gamma={wildcards.g}/{genome_length} -d L={genome_length} slim/slim_sim.txt"
 
-ruleorder: spectra_from_slim > msprime
-ruleorder: msprime_from_fastNeutrino > spectra_from_slim
+ruleorder: add_runs_from_SLiM > add_runs
 
-rule spectra_from_slim:
+rule add_runs_from_SLiM:
+    group: 'cleanup'
     output:
-        'simulations/spectra/gamma_{g}_mu_{mu}_s_{s}.rep{rep}.npz'
+        'simulations/msprime/gamma_{g}_mu_{mu}_s_{s}.npz'
     input:
-        'simulations/gamma_{g}_mu_{mu}_s_{s}_run_{rep}.trees'
-    params:
-        mem = 100,
-        time = 10
+        expand('simulations/tree_files/gamma_{g}_mu_{mu}_s_{s}_run_{rep}.trees', rep = np.arange(1000), allow_missing = True)
+    resources: time=800,
     run:
-        sample_size = 100
-        length = 100
-        tseq = get_tseq(str(input), sample_size, num_bp=length)
-        spectra = spectra_from_TreeSequences(tseq, sample_size, length=100, recombination_rate=1e-8)
-        spectra.save(output[0])
+        for rep, fname in enumerate(input):
+            random.seed(filename2seed(fname))
+            samples = random.sample(range(20000), k = 100)
+            num_bp = 100
+            recombination_rate = float(wildcards.g) * 1/genome_length
+            num_trees = 500
+            print(genome_length)
+            windows = np.arange(start = 0, stop = num_bp + 1, step = 1)
+            tseq_array = get_tseq( str(fname), length = genome_length, samples = samples, num_trees = num_trees,
+                                num_bp = num_bp )
+            spectra = sum( spectra_from_TreeSequence(windows, recombination_rate, tseq) for tseq in tseq_array )
+            if rep == 0:
+                total = spectra
+            else:
+                total += spectra
 
+        total.save(output[0])
