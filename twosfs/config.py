@@ -30,7 +30,7 @@ class Configuration:
         """Initialize filename templates."""
         self.initial_spectra_file = (
             self.simulation_directory
-            + "/spectra/model={model}.params={params}.rep={rep}.npz"
+            + "/initial_spectra/model={model}.params={params}.rep={rep}.npz"
         )
         self.fitted_demography_file = (
             self.simulation_directory
