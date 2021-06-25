@@ -48,7 +48,7 @@ rule fit_demographies:
     run:
         spectra = load_spectra(input[0])
         fit = spectra.fit_pwc_demography(
-            folded=wildcards.folded,
+            folded=wildcards.folded == "True",
             k_max=config.k_max,
             num_epochs=config.num_epochs,
         )
