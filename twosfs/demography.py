@@ -1,7 +1,4 @@
 """Defines a class of demographic models for translating and scaling."""
-import os
-from dataclasses import dataclass
-from typing import Union
 
 from msprime import Demography
 
@@ -16,13 +13,11 @@ def make_exp_demography(
     return demography
 
 
-def make_pwc_demography(
-    sizes: list[float], start_times: list[float], initial_size=1.0
-) -> Demography:
+def make_pwc_demography(sizes: list[float], times: list[float]) -> Demography:
     """Make an msprime demography with piecewise constant population size."""
     demography = Demography()
-    demography.add_population(initial_size=initial_size)
-    for size, time in zip(sizes, start_times):
+    demography.add_population(initial_size=sizes[0])
+    for size, time in zip(sizes[1:], times):
         demography.add_population_parameters_change(time=time, initial_size=size)
     return demography
 
@@ -32,37 +27,3 @@ def expected_t2_demography(demography: Demography) -> float:
     pop = demography.populations[0].name
     debugger = demography.debug()
     return debugger.mean_coalescence_time(lineages={pop: 2}, min_pop_size=0)
-
-
-@dataclass
-class _FastNeutrinoEpoch:
-    """Epochs in the fastNeutrino demographic model."""
-
-    size: float
-    end_time: float
-
-
-def _parse_line(line: str) -> _FastNeutrinoEpoch:
-    if line.startswith("c"):
-        # Constant-N epoch
-        n, t = map(float, line.split()[-2:])
-    else:
-        raise ValueError("Warning, bad line: " + line.strip())
-    return _FastNeutrinoEpoch(size=n, end_time=t)
-
-
-def read_fastNeutrino_output(
-    model_fn: Union[str, bytes, os.PathLike],
-) -> tuple[list[float], list[float], float]:
-    """Read piecwise constant parameters from a fastNeutrino output file."""
-    with open(model_fn) as modelfile:
-        # Discard the header
-        _ = modelfile.readline()
-        n_anc = float(modelfile.readline())
-        epochs = [_parse_line(line) for line in modelfile]
-    # Rescale sizes because fastNeutrino and msprime use different models
-    # Translate start times to end times
-    initial_size = epochs[0].size / 2
-    sizes = [epoch.size / 2 for epoch in epochs[1:]] + [n_anc / 2]
-    start_times = [epoch.end_time for epoch in epochs]
-    return sizes, start_times, initial_size

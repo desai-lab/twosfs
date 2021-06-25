@@ -2,7 +2,6 @@ import numpy as np
 import json
 
 from twosfs.config import configuration_from_json, parse_parameter_string
-from twosfs.demography import read_fastNeutrino_output
 from twosfs.simulations import filename2seed, simulate_spectra
 from twosfs.spectra import add_spectra, load_spectra
 from twosfs.statistics import scan_parameters
@@ -41,6 +40,22 @@ rule simulate_initial_spectra:
         spectra.save(output[0])
 
 
+rule fit_demographies:
+    input:
+        config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
+    output:
+        config.fitted_demography_file,
+    run:
+        spectra = load_spectra(input[0])
+        fit = spectra.fit_pwc_demography(
+            folded=wildcards.folded,
+            k_max=config.k_max,
+            num_epochs=config.num_epochs,
+        )
+        with open(output[0], "w") as f:
+            f.write(fit.toJson())
+
+
 rule simulate_fitted_spectra:
     output:
         temp(config.fitted_spectra_file),
@@ -49,12 +64,8 @@ rule simulate_fitted_spectra:
     wildcard_constraints:
         rep="\d+",
     run:
-        model_parameters = dict(
-            zip(
-                ("sizes", "start_times", "initial_size"),
-                read_fastNeutrino_output(input[0]),
-            )
-        )
+        with open(input[0], "r") as f:
+            model_parameters = json.load(f)
         r = config.scaled_recombination_rate * float(wildcards.rec_factor)
         spectra = simulate_spectra(
             model="pwc",
@@ -78,37 +89,6 @@ rule add_runs:
     run:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
-
-
-rule fit_demographies:
-    input:
-        datafile=config.temp_sfs_file,
-        modelfile=config.demographic_model_file,
-    output:
-        config.fitted_demography_file,
-    params:
-        maxB=config.fastNeutrino_maxB,
-        maxRandomRestarts=config.fastNeutrino_maxRandomRestarts,
-    log:
-        "log/fastNeutrino.{model}.{params}.{demo}.log",
-    shell:
-        "fastNeutrino "
-        "--maxB {params.maxB} "
-        "--maxRandomRestarts {params.maxRandomRestarts} "
-        "--modelFile {input.modelfile} "
-        "--inferredModelOutputFile '{output}' "
-        "< '{input.datafile}' "
-        "> '{log}'"
-
-
-rule fastNeutrinoInput:
-    input:
-        config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
-    output:
-        temp(config.temp_sfs_file),
-    run:
-        spectra = load_spectra(input[0])
-        spectra.export_to_fastNeutrino(output[0])
 
 
 ### OLD STUFF

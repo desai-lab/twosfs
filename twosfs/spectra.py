@@ -7,6 +7,8 @@ import attr.validators as v
 import numpy as np
 import tskit
 
+from fitsfs.fitsfs import fit_sfs
+
 # Converters
 
 
@@ -194,24 +196,10 @@ class Spectra(object):
         """Return pi * r (or 2 * E[T_2] * r)."""
         return self.tajimas_pi() * self.recombination_rate
 
-    def export_to_fastNeutrino(
-        self, filename: str, sfs_0: float = 100.0, folded: bool = False
-    ) -> None:
-        """Write SFS as a fastNeutrino input file.
-
-        Parameters
-        ----------
-        filename : str
-            The name of the fastNeutrino input file to write.
-        sfs_0 : int
-            The number in the zero-class. This does not effect fitting.
-            (Default=100).
-        folded : bool
-            If True, fold the sfs before exporting.
-        """
-        export_to_fastNeutrino(
-            filename, self.normalized_onesfs(folded=folded), sfs_0=sfs_0
-        )
+    def fit_pwc_demography(self, **kwargs) -> tuple[list[float], list[float]]:
+        """Fit a piecewise constant population size to the onesfs."""
+        sfs = self.normalized_onesfs()[1:-1]
+        return fit_sfs(sfs, **kwargs)
 
     def save(self, output_file) -> None:
         """Save Spectra to a .npz file.
@@ -378,25 +366,3 @@ def tajimas_pi(onesfs: np.ndarray) -> float:
     k = np.arange(n + 1)
     weights = 2 * k * (n - k) / (n * (n - 1))
     return np.dot(onesfs, weights)
-
-
-def export_to_fastNeutrino(filename: str, sfs, sfs_0=100):
-    """Write SFS as a fastNeutrino input file.
-
-    Parameters
-    ----------
-    filename : str
-        The name of the fastNeutrino input file to write.
-    sfs : array_like
-        Length n+1 array containing the site frequency spectrum.
-    sfs_0 : int
-        The number in the zero-class. This does not effect fitting.
-        (Default=100).
-    """
-    n = len(sfs) - 1
-    # Normalize sfs to have pi = 4.
-    sfs *= 4 / tajimas_pi(sfs)
-    sfs[0] = sfs_0
-    with open(filename, "w") as outfile:
-        outfile.write(f"{n}\t1\n")
-        outfile.write("\n".join(map(str, sfs)) + "\n")

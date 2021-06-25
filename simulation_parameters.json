@@ -1,9 +1,5 @@
 {
-  "initial_spectra_file": "simulations/spectra/model={model}.params={params}.rep={rep}.npz",
-  "temp_sfs_file": "simulations/.tmp/model={model}.params={params}.sfs.txt",
-  "fitted_demography_file": "simulations/fitted_demographies/model={model}.params={params}.demography={demo}.txt",
-  "fitted_spectra_file": "simulations/fitted_spectra/model={model}.params={params}.demography={demo}.rec_factor={rec_factor}.rep={rep}.npz",
-  "demographic_model_file": "twosfs/models/{demo}.txt",
+  "simulation_directory": "simulations",
   "nruns": 100,
   "scaled_recombination_rate": 0.1,
   "msprime_parameters": {
@@ -19,7 +15,6 @@
   "growth_rates": [0.5, 1.0, 2.0],
   "end_times": [0.5, 1.0, 2.0],
   "rec_factors": [0.71, 0.79, 0.89, 1.0, 1.12, 1.26, 1.41],
-  "fitted_demographies": ["3Epoch"],
-  "fastNeutrino_maxB": 20,
-  "fastNeutrino_maxRandomRestarts": 100
+  "k_max": 20,
+  "num_epochs": 4
 }

@@ -37,8 +37,7 @@ def _dispatch_model(
         coal_model = msprime.StandardCoalescent()
         demography = make_pwc_demography(
             sizes=model_parameters["sizes"],
-            start_times=model_parameters["start_times"],
-            initial_size=model_parameters["initial_size"],
+            times=model_parameters["times"],
         )
         t2 = expected_t2_demography(demography)
     elif model == "beta":

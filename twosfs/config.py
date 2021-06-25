@@ -1,6 +1,6 @@
 """Configuration class to hold simulation parameters."""
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from os import PathLike
 from typing import Any, Iterator, Union
 
@@ -9,11 +9,10 @@ from typing import Any, Iterator, Union
 class Configuration:
     """Configuration class to hold simulation parameters."""
 
-    initial_spectra_file: str
-    temp_sfs_file: str
-    fitted_demography_file: str
-    fitted_spectra_file: str
-    demographic_model_file: str
+    simulation_directory: str
+    initial_spectra_file: str = field(init=False)
+    fitted_demography_file: str = field(init=False)
+    fitted_spectra_file: str = field(init=False)
     # number of parallel msprime jobs
     nruns: int
     #  2 r * mean_coalescence_time
@@ -23,9 +22,25 @@ class Configuration:
     growth_rates: list[float]
     end_times: list[float]
     rec_factors: list[float]
-    fitted_demographies: list[str]
-    fastNeutrino_maxB: int
-    fastNeutrino_maxRandomRestarts: int
+    # Fitting parameters
+    k_max: int
+    num_epochs: int
+
+    def __post_init__(self):
+        """Initialize filename templates."""
+        self.initial_spectra_file = (
+            self.simulation_directory
+            + "/spectra/model={model}.params={params}.rep={rep}.npz"
+        )
+        self.fitted_demography_file = (
+            self.simulation_directory
+            + "/fitted_demographies/model={model}.params={params}.folded={folded}.txt"
+        )
+        self.fitted_spectra_file = (
+            self.simulation_directory
+            + "/fitted_spectra/model={model}.params={params}.folded={folded}"
+            + ".rec_factor={rec_factor}.rep={rep}.npz"
+        )
 
     def iter_models(self) -> Iterator[tuple[str, dict]]:
         """Return an iterator over all model-parameter combinations."""
@@ -42,35 +57,39 @@ class Configuration:
             model=model, params=make_parameter_string(params), rep="all"
         )
 
-    def format_fitted_demography_file(self, model: str, params: dict, demo: str) -> str:
+    def format_fitted_demography_file(
+        self, model: str, params: dict, folded: bool
+    ) -> str:
         """Get a fitted demography filename."""
         return self.fitted_demography_file.format(
-            model=model, params=make_parameter_string(params), demo=demo
+            model=model,
+            params=make_parameter_string(params),
+            folded=folded,
         )
 
     def format_fitted_spectra_file(
-        self, model: str, params: dict, demo: str, rec_factor: float
+        self, model: str, params: dict, folded: bool, rec_factor: float
     ) -> str:
         """Get a fitted spectra filename."""
         return self.fitted_spectra_file.format(
             model=model,
             params=make_parameter_string(params),
-            demo=demo,
+            folded=folded,
             rec_factor=rec_factor,
             rep="all",
         )
 
-    def iter_demos(self) -> Iterator[tuple[str, dict, str]]:
+    def iter_demos(self) -> Iterator[tuple[str, dict, bool]]:
         """Return an iterator over all model-parameter-demography combinations."""
         for model, params in self.iter_models():
-            for demo in self.fitted_demographies:
-                yield model, params, demo
+            for folded in [True, False]:
+                yield model, params, folded
 
-    def iter_all(self) -> Iterator[tuple[str, dict, str, float]]:
+    def iter_all(self) -> Iterator[tuple[str, dict, bool, float]]:
         """Return an iterator over all model-parameter-demography-rec combinations."""
-        for model, params, demo in self.iter_demos():
+        for model, params, folded in self.iter_demos():
             for rec_factor in self.rec_factors:
-                yield model, params, demo, rec_factor
+                yield model, params, folded, rec_factor
 
     def initial_spectra_files(self) -> Iterator[str]:
         """Iterate all initial spectra files."""
