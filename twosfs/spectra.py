@@ -1,6 +1,7 @@
 """Class and functions for manipulating SFS and 2SFS."""
 from collections.abc import Iterable
 from copy import deepcopy
+from typing import Optional
 
 import attr
 import attr.validators as v
@@ -155,7 +156,7 @@ class Spectra(object):
         return (
             self.num_samples == other.num_samples
             and self.windows.shape == other.windows.shape
-            and np.all(self.windows == other.windows)
+            and bool(np.all(self.windows == other.windows))
             and np.isclose(self.recombination_rate, other.recombination_rate)
         )
 
@@ -172,21 +173,29 @@ class Spectra(object):
         """Addition of spectra is commutative."""
         return self.__add__(other)
 
-    def normalized_onesfs(self, folded=False) -> np.ndarray:
+    def normalized_onesfs(
+        self, folded: bool = False, k_max: Optional[int] = None
+    ) -> np.ndarray:
         """Return the SFS normalized to one."""
+        if not k_max:
+            k_max = self.num_samples
         normed = self.onesfs / np.sum(self.onesfs)
         if folded:
-            return foldonesfs(normed)
+            return lump_onesfs(foldonesfs(normed), k_max=k_max)
         else:
-            return normed
+            return lump_onesfs(normed, k_max=k_max)
 
-    def normalized_twosfs(self, folded=False) -> np.ndarray:
+    def normalized_twosfs(
+        self, folded: bool = False, k_max: Optional[int] = None
+    ) -> np.ndarray:
         """Return the 2SFS normalized to one in each window."""
+        if not k_max:
+            k_max = self.num_samples
         normed = self.twosfs / np.sum(self.twosfs, axis=(1, 2))[:, None, None]
         if folded:
-            return foldtwosfs(normed)
+            return lump_twosfs(foldtwosfs(normed), k_max=k_max)
         else:
-            return normed
+            return lump_twosfs(normed, k_max=k_max)
 
     def tajimas_pi(self) -> float:
         """Return the Tajima's pi (average pairwise diversity)."""
@@ -342,21 +351,21 @@ def foldtwosfs(twosfs: np.ndarray) -> np.ndarray:
     return folded
 
 
-def lump_onesfs(onesfs: np.ndarray, kmax: int) -> np.ndarray:
-    """Lump all sfs bins for k>=kmax into one bin."""
-    onesfs_lumped = np.zeros(kmax + 1)
-    onesfs_lumped[:-1] = onesfs[:kmax]
-    onesfs_lumped[-1] = np.sum(onesfs[kmax:])
+def lump_onesfs(onesfs: np.ndarray, k_max: int) -> np.ndarray:
+    """Lump all sfs bins for k>=k_max into one bin."""
+    onesfs_lumped = np.zeros(k_max + 1)
+    onesfs_lumped[:-1] = onesfs[:k_max]
+    onesfs_lumped[-1] = np.sum(onesfs[k_max:])
     return onesfs_lumped
 
 
-def lump_twosfs(twosfs: np.ndarray, kmax: int) -> np.ndarray:
-    """Lump all 2-sfs bins for k>=kmax into one bin."""
-    twosfs_lumped = np.zeros((twosfs.shape[0], kmax + 1, kmax + 1))
-    twosfs_lumped[:, :-1, :-1] = twosfs[:, :kmax, :kmax]
-    twosfs_lumped[:, -1, :-1] = np.sum(twosfs[:, kmax:, :kmax], axis=1)
-    twosfs_lumped[:, :-1, -1] = np.sum(twosfs[:, :kmax, kmax:], axis=2)
-    twosfs_lumped[:, -1, -1] = np.sum(twosfs[:, kmax:, kmax:], axis=(1, 2))
+def lump_twosfs(twosfs: np.ndarray, k_max: int) -> np.ndarray:
+    """Lump all 2-sfs bins for k>=k_max into one bin."""
+    twosfs_lumped = np.zeros((twosfs.shape[0], k_max + 1, k_max + 1))
+    twosfs_lumped[:, :-1, :-1] = twosfs[:, :k_max, :k_max]
+    twosfs_lumped[:, -1, :-1] = np.sum(twosfs[:, k_max:, :k_max], axis=1)
+    twosfs_lumped[:, :-1, -1] = np.sum(twosfs[:, :k_max, k_max:], axis=2)
+    twosfs_lumped[:, -1, -1] = np.sum(twosfs[:, k_max:, k_max:], axis=(1, 2))
     return twosfs_lumped
 
 
