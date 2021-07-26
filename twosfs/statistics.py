@@ -52,8 +52,8 @@ def resample_twosfs_pdf(input_twosfs_pdf: np.ndarray, n_obs: np.ndarray) -> np.n
     sampled_pdf = np.zeros_like(input_twosfs_pdf)
     for i, pdf in enumerate(input_twosfs_pdf):
         rand_counts = np.random.multinomial(n_obs[i], pdf.ravel()).reshape(pdf.shape)
-        sampled_pdf[i] = (rand_counts + rand_counts.T) / (2 * np.sum(rand_counts))
-    return sampled_pdf
+        sampled_pdf[i] = (rand_counts + rand_counts.T) / 2
+    return sampled_pdf / np.sum(sampled_pdf)
 
 
 def twosfs_test(
