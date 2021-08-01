@@ -9,5 +9,5 @@ scipy
 pytest
 hypothesis
 pre-commit
--e git://github.com/dp-rice/fitsfs@v0.0.2-alpha#egg=fitsfs
+-e git://github.com/dp-rice/fitsfs@v0.0.3-alpha#egg=fitsfs
 -e .
