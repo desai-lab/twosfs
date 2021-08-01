@@ -16,5 +16,6 @@
   "end_times": [0.5, 1.0, 2.0],
   "rec_factors": [0.71, 0.79, 0.89, 1.0, 1.12, 1.26, 1.41],
   "k_max": 20,
-  "num_epochs": 4
+  "num_epochs": 5,
+  "penalty_coef": 1e-6
 }

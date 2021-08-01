@@ -25,6 +25,7 @@ class Configuration:
     # Fitting parameters
     k_max: int
     num_epochs: int
+    penalty_coef: float
 
     def __post_init__(self):
         """Initialize filename templates."""

@@ -51,6 +51,7 @@ rule fit_demographies:
             folded=wildcards.folded == "True",
             k_max=config.k_max,
             num_epochs=config.num_epochs,
+            penalty_coef=config.penalty_coef,
         )
         with open(output[0], "w") as f:
             f.write(fit.toJson())
