@@ -16,6 +16,7 @@
 from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from twosfs.config import configuration_from_json
 from twosfs.spectra import Spectra, load_spectra
@@ -45,8 +46,8 @@ for i, d in enumerate(data):
 
 sp_test = data[28].spectra
 num_epochs = 5
-folded = True
-pc = 2e-6
+folded = False
+pc = 1e-6
 for i in range(100):
     demo = sp_test.fit_pwc_demography(
         folded=folded,
@@ -54,11 +55,13 @@ for i in range(100):
         num_epochs=num_epochs,
         num_restarts=1,
         penalty_coef=pc,
-        interval_bounds=(1e-2, 10),
-        # options={"ftol": 1e-11, "gtol": 1e-13},
     )
     if demo.kl_div < 1e-6:
         print(demo.kl_div, demo.sizes, demo.times, sep="\n")
+        print(
+            np.array([demo.times[0]] + list(np.diff(demo.times))) / demo.sizes[:-1],
+            sep="\n",
+        )
         print()
 
 sp_test = data[1].spectra
@@ -72,11 +75,13 @@ for i in range(100):
         num_epochs=num_epochs,
         num_restarts=1,
         penalty_coef=pc,
-        interval_bounds=(1e-2, 10),
-        # options={"ftol": 1e-11, "gtol": 1e-13},
     )
     if demo.kl_div < 1e-5:
         print(demo.kl_div, demo.sizes, demo.times, sep="\n")
+        print(
+            np.array([demo.times[0]] + list(np.diff(demo.times))) / demo.sizes[:-1],
+            sep="\n",
+        )
         print()
 
 # +
@@ -94,7 +99,6 @@ fitted_unfolded = [
             num_epochs=num_epochs,
             num_restarts=50,
             penalty_coef=pc,
-            interval_bounds=(1e-2, 10),
         ),
     )
     for d in data
@@ -136,7 +140,6 @@ fitted_folded = [
             num_epochs=num_epochs,
             num_restarts=50,
             penalty_coef=pc,
-            interval_bounds=(1e-2, 10),
         ),
     )
     for d in data

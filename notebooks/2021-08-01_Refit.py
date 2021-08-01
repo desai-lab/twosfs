@@ -21,20 +21,12 @@ import json
 from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
-import msprime
 import numpy as np
 from scipy.special import rel_entr
 
 import twosfs.statistics as stats
 from twosfs.config import configuration_from_json
-from twosfs.spectra import (
-    Spectra,
-    foldonesfs,
-    foldtwosfs,
-    load_spectra,
-    lump_onesfs,
-    lump_twosfs,
-)
+from twosfs.spectra import Spectra, foldonesfs, load_spectra, lump_onesfs, lump_twosfs
 
 
 @dataclass
@@ -51,7 +43,7 @@ def kl_div(x, y, axis=None):
 
 
 configuration = configuration_from_json("../simulation_parameters.json")
-kmax = configuration.k_max
+k_max = configuration.k_max
 num_samples = (
     configuration.msprime_parameters["samples"]
     * configuration.msprime_parameters["ploidy"]
@@ -88,16 +80,6 @@ for model, params in configuration.iter_models():
     )
 
 
-d.spectra.normalized_onesfs(folded=False)
-
-d.spectra.onesfs / np.sum(d.spectra.onesfs)
-
-type(np.array([True, False])[0])
-
-type(bool(np.array([True, False])[0]))
-
-# ?np.all
-
 for d in data:
     print(
         d.model,
@@ -109,8 +91,8 @@ for d in data:
         round(d.spectra_fitted.scaled_recombination_rate(), ndigits=4),
         sep="\t",
     )
-    sfs_sim = d.spectra.normalized_onesfs(folded=folded, kmax=kmax)[1:]
-    sfs_sim_fit = d.spectra_fitted.normalized_onesfs(folded=folded, kmax=kmax)[1:]
+    sfs_sim = d.spectra.normalized_onesfs(folded=folded, k_max=k_max)[1:]
+    sfs_sim_fit = d.spectra_fitted.normalized_onesfs(folded=folded, k_max=k_max)[1:]
     sfs_exp = d.demography["sfs_exp"]
     sfs_obs = d.demography["sfs_obs"]
     print(d.demography["kl_div"])
@@ -120,13 +102,13 @@ for d in data:
 
 
 for d in data:
-    onesfs = lump_onesfs(d.spectra.normalized_onesfs(folded=folded), kmax=kmax)
+    onesfs = lump_onesfs(d.spectra.normalized_onesfs(folded=folded), k_max=k_max)
     onesfs_fitted = lump_onesfs(
-        d.spectra_fitted.normalized_onesfs(folded=folded), kmax=kmax
+        d.spectra_fitted.normalized_onesfs(folded=folded), k_max=k_max
     )
-    twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), kmax=kmax)
+    twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), k_max=k_max)
     twosfs_fitted = lump_twosfs(
-        d.spectra_fitted.normalized_twosfs(folded=folded), kmax=kmax
+        d.spectra_fitted.normalized_twosfs(folded=folded), k_max=k_max
     )
     print(
         d.model,
@@ -135,9 +117,9 @@ for d in data:
         sep="\t",
     )
 
-    sfs_sim = lump_onesfs(d.spectra.normalized_onesfs(folded=folded), kmax=kmax)[1:]
+    sfs_sim = lump_onesfs(d.spectra.normalized_onesfs(folded=folded), k_max=k_max)[1:]
     sfs_sim_fit = lump_onesfs(
-        d.spectra_fitted.normalized_onesfs(folded=folded), kmax=kmax
+        d.spectra_fitted.normalized_onesfs(folded=folded), k_max=k_max
     )[1:]
     sfs_exp = d.demography["sfs_exp"]
     sfs_obs = d.demography["sfs_obs"]
@@ -151,9 +133,9 @@ for d in data:
     plt.show()
 
 for d in data:
-    twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), kmax=kmax)
+    twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), k_max=k_max)
     twosfs_fitted = lump_twosfs(
-        d.spectra_fitted.normalized_twosfs(folded=folded), kmax=kmax
+        d.spectra_fitted.normalized_twosfs(folded=folded), k_max=k_max
     )
 
     if d.model == "beta":
@@ -173,13 +155,13 @@ plt.show()
 
 for dist in [0, 1, 5, 10]:
     for d in data:
-        onesfs = lump_onesfs(d.spectra.normalized_onesfs(folded=folded), kmax=kmax)
+        onesfs = lump_onesfs(d.spectra.normalized_onesfs(folded=folded), k_max=k_max)
         onesfs_fitted = lump_onesfs(
-            d.spectra_fitted.normalized_onesfs(folded=folded), kmax=kmax
+            d.spectra_fitted.normalized_onesfs(folded=folded), k_max=k_max
         )
-        twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), kmax=kmax)
+        twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), k_max=k_max)
         twosfs_fitted = lump_twosfs(
-            d.spectra_fitted.normalized_twosfs(folded=folded), kmax=kmax
+            d.spectra_fitted.normalized_twosfs(folded=folded), k_max=k_max
         )
 
         if d.model == "beta":
@@ -187,7 +169,7 @@ for dist in [0, 1, 5, 10]:
         else:
             color = "C1"
 
-        # kld_1 = kl_div(lump_onesfs(const_onesfs, kmax=kmax), onesfs)
+        # kld_1 = kl_div(lump_onesfs(const_onesfs, k_max=k_max), onesfs)
         kld_1 = kl_div(onesfs, onesfs_fitted)
         kld_2 = kl_div(twosfs[dist], twosfs_fitted[dist])
         plt.loglog(kld_1, kld_2, ".", color=color)
@@ -199,13 +181,13 @@ for dist in [0, 1, 5, 10]:
 
 for dist in [0, 1, 5, 10]:
     for d in data:
-        onesfs = lump_onesfs(d.spectra.normalized_onesfs(folded=folded), kmax=kmax)
+        onesfs = lump_onesfs(d.spectra.normalized_onesfs(folded=folded), k_max=k_max)
         onesfs_fitted = lump_onesfs(
-            d.spectra_fitted.normalized_onesfs(folded=folded), kmax=kmax
+            d.spectra_fitted.normalized_onesfs(folded=folded), k_max=k_max
         )
-        twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), kmax=kmax)
+        twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), k_max=k_max)
         twosfs_fitted = lump_twosfs(
-            d.spectra_fitted.normalized_twosfs(folded=folded), kmax=kmax
+            d.spectra_fitted.normalized_twosfs(folded=folded), k_max=k_max
         )
 
         if d.model == "beta":
@@ -214,9 +196,9 @@ for dist in [0, 1, 5, 10]:
             color = "C1"
 
         if folded:
-            kld_1 = kl_div(lump_onesfs(foldonesfs(const_onesfs), kmax=kmax), onesfs)
+            kld_1 = kl_div(lump_onesfs(foldonesfs(const_onesfs), k_max=k_max), onesfs)
         else:
-            kld_1 = kl_div(lump_onesfs(const_onesfs, kmax=kmax), onesfs)
+            kld_1 = kl_div(lump_onesfs(const_onesfs, k_max=k_max), onesfs)
         kld_2 = kl_div(twosfs[dist], twosfs_fitted[dist])
         plt.plot(kld_1, kld_2, ".", color=color)
         plt.ylabel(r"2-SFS KL divergence bw. real and fitted")
@@ -227,10 +209,10 @@ for dist in [0, 1, 5, 10]:
 
 for dist in [0, 1, 5, 10, 20, 40]:
     for d in data:
-        onesfs = lump_onesfs(d.spectra.normalized_onesfs(), kmax=kmax)
-        onesfs_fitted = lump_onesfs(d.spectra_fitted.normalized_onesfs(), kmax=kmax)
-        twosfs = lump_twosfs(d.spectra.normalized_twosfs(), kmax=kmax)
-        twosfs_fitted = lump_twosfs(d.spectra_fitted.normalized_twosfs(), kmax=kmax)
+        onesfs = lump_onesfs(d.spectra.normalized_onesfs(), k_max=k_max)
+        onesfs_fitted = lump_onesfs(d.spectra_fitted.normalized_onesfs(), k_max=k_max)
+        twosfs = lump_twosfs(d.spectra.normalized_twosfs(), k_max=k_max)
+        twosfs_fitted = lump_twosfs(d.spectra_fitted.normalized_twosfs(), k_max=k_max)
 
         if d.model == "beta":
             color = "C0"
@@ -239,10 +221,12 @@ for dist in [0, 1, 5, 10, 20, 40]:
 
         if folded:
             ksd_1 = stats.max_ks_distance(
-                lump_onesfs(foldonesfs(const_onesfs), kmax=kmax), onesfs
+                lump_onesfs(foldonesfs(const_onesfs), k_max=k_max), onesfs
             )
         else:
-            ksd_1 = stats.max_ks_distance(lump_onesfs(const_onesfs, kmax=kmax), onesfs)
+            ksd_1 = stats.max_ks_distance(
+                lump_onesfs(const_onesfs, k_max=k_max), onesfs
+            )
         ksd_2 = stats.max_ks_distance(twosfs[dist], twosfs_fitted[dist])
         plt.plot(ksd_1, ksd_2, ".", color=color)
         plt.ylabel(r"2-SFS KS distance bw. real and fitted")
@@ -253,10 +237,10 @@ for dist in [0, 1, 5, 10, 20, 40]:
 
 for max_dist in [1, 5, 10, 20, 40]:
     for d in data:
-        onesfs = lump_onesfs(d.spectra.normalized_onesfs(), kmax=kmax)
-        onesfs_fitted = lump_onesfs(d.spectra_fitted.normalized_onesfs(), kmax=kmax)
-        twosfs = lump_twosfs(d.spectra.normalized_twosfs(), kmax=kmax)
-        twosfs_fitted = lump_twosfs(d.spectra_fitted.normalized_twosfs(), kmax=kmax)
+        onesfs = lump_onesfs(d.spectra.normalized_onesfs(), k_max=k_max)
+        onesfs_fitted = lump_onesfs(d.spectra_fitted.normalized_onesfs(), k_max=k_max)
+        twosfs = lump_twosfs(d.spectra.normalized_twosfs(), k_max=k_max)
+        twosfs_fitted = lump_twosfs(d.spectra_fitted.normalized_twosfs(), k_max=k_max)
 
         if d.model == "beta":
             color = "C0"
@@ -265,7 +249,7 @@ for max_dist in [1, 5, 10, 20, 40]:
 
         twosfs_adj = twosfs[:max_dist] / max_dist
         twosfs_adj_fitted = twosfs_fitted[:max_dist] / max_dist
-        ksd_1 = stats.max_ks_distance(lump_onesfs(const_onesfs, kmax=kmax), onesfs)
+        ksd_1 = stats.max_ks_distance(lump_onesfs(const_onesfs, k_max=k_max), onesfs)
         ksd_2 = stats.max_ks_distance(twosfs_adj, twosfs_adj_fitted)
         plt.plot(ksd_1, ksd_2, ".", color=color)
         plt.ylabel(r"2-SFS KS distance bw. real and fitted")
@@ -276,10 +260,10 @@ for max_dist in [1, 5, 10, 20, 40]:
 
 for max_dist in [1, 5, 10, 20, 40]:
     for d in data:
-        onesfs = lump_onesfs(d.spectra.normalized_onesfs(), kmax=kmax)
-        onesfs_fitted = lump_onesfs(d.spectra_fitted.normalized_onesfs(), kmax=kmax)
-        twosfs = lump_twosfs(d.spectra.normalized_twosfs(), kmax=kmax)
-        twosfs_fitted = lump_twosfs(d.spectra_fitted.normalized_twosfs(), kmax=kmax)
+        onesfs = lump_onesfs(d.spectra.normalized_onesfs(), k_max=k_max)
+        onesfs_fitted = lump_onesfs(d.spectra_fitted.normalized_onesfs(), k_max=k_max)
+        twosfs = lump_twosfs(d.spectra.normalized_twosfs(), k_max=k_max)
+        twosfs_fitted = lump_twosfs(d.spectra_fitted.normalized_twosfs(), k_max=k_max)
 
         if d.model == "beta":
             color = "C0"
@@ -288,7 +272,7 @@ for max_dist in [1, 5, 10, 20, 40]:
 
         twosfs_adj = twosfs[:max_dist] / max_dist
         twosfs_adj_fitted = twosfs_fitted[:max_dist] / max_dist
-        kld_1 = kl_div(lump_onesfs(const_onesfs, kmax=kmax), onesfs)
+        kld_1 = kl_div(lump_onesfs(const_onesfs, k_max=k_max), onesfs)
         kld_2 = kl_div(twosfs_adj, twosfs_adj_fitted)
         plt.plot(kld_1, kld_2, ".", color=color)
         plt.ylabel(r"2-SFS KL divergence bw. real and fitted")
@@ -305,9 +289,9 @@ n_reps = 1000
 pair_density = 5000
 bins = np.arange(0, 4, 0.05)
 
-twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), kmax=kmax)
+twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), k_max=k_max)
 twosfs_fitted = lump_twosfs(
-    d.spectra_fitted.normalized_twosfs(folded=folded), kmax=kmax
+    d.spectra_fitted.normalized_twosfs(folded=folded), k_max=k_max
 )
 
 
@@ -351,9 +335,9 @@ pair_density = 5000
 max_dists = np.arange(4, 26, 3)
 
 for d in data:
-    twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), kmax=kmax)
+    twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), k_max=k_max)
     twosfs_fitted = lump_twosfs(
-        d.spectra_fitted.normalized_twosfs(folded=folded), kmax=kmax
+        d.spectra_fitted.normalized_twosfs(folded=folded), k_max=k_max
     )
 
     power = []
@@ -402,9 +386,9 @@ pair_density = 20000
 max_dists = np.arange(4, 26, 3)
 
 for d in data[10:]:
-    twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), kmax=kmax)
+    twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), k_max=k_max)
     twosfs_fitted = lump_twosfs(
-        d.spectra_fitted.normalized_twosfs(folded=folded), kmax=kmax
+        d.spectra_fitted.normalized_twosfs(folded=folded), k_max=k_max
     )
 
     power = []
