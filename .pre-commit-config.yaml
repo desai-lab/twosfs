@@ -30,7 +30,7 @@ repos:
     rev: v0.910
     hooks:
       - id: mypy
-        args: [--install-types, types-attrs]
+        additional_dependencies: [attrs==20.3.0]
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v2.3.2
     hooks:
