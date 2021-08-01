@@ -1,3 +1,0 @@
-# fastNeutrino --maxB 10 --maxRandomRestarts 100 --modelFile twosfs/models/3Epoch.txt --inferredModelOutputFile simulations/fastNeutrino/xibeta-alpha=1.50.3Epoch.txt
-1
-c	2.0	0.5
