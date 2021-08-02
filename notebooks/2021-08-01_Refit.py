@@ -148,7 +148,7 @@ for d in data:
         ".",
         color=color,
     )
-    plt.ylim([1e-6, 1e-1])
+    plt.ylim([1e-6, 1e-2])
     plt.ylabel("2-SFS KL divergence")
     plt.xlabel("Distance")
 plt.show()
@@ -204,85 +204,11 @@ for dist in [0, 1, 5, 10]:
         plt.ylabel(r"2-SFS KL divergence bw. real and fitted")
         plt.xlabel(r"1-SFS KL divergence from constant-$N$")
         plt.title(f"Distance = {dist}")
-        plt.ylim([-0.001, 0.015])
-    plt.show()
-
-for dist in [0, 1, 5, 10, 20, 40]:
-    for d in data:
-        onesfs = lump_onesfs(d.spectra.normalized_onesfs(), k_max=k_max)
-        onesfs_fitted = lump_onesfs(d.spectra_fitted.normalized_onesfs(), k_max=k_max)
-        twosfs = lump_twosfs(d.spectra.normalized_twosfs(), k_max=k_max)
-        twosfs_fitted = lump_twosfs(d.spectra_fitted.normalized_twosfs(), k_max=k_max)
-
-        if d.model == "beta":
-            color = "C0"
-        else:
-            color = "C1"
-
-        if folded:
-            ksd_1 = stats.max_ks_distance(
-                lump_onesfs(foldonesfs(const_onesfs), k_max=k_max), onesfs
-            )
-        else:
-            ksd_1 = stats.max_ks_distance(
-                lump_onesfs(const_onesfs, k_max=k_max), onesfs
-            )
-        ksd_2 = stats.max_ks_distance(twosfs[dist], twosfs_fitted[dist])
-        plt.plot(ksd_1, ksd_2, ".", color=color)
-        plt.ylabel(r"2-SFS KS distance bw. real and fitted")
-        plt.xlabel(r"1-SFS KS distance from constant-$N$")
-        plt.title(f"Distance = {dist}")
-        plt.ylim([-0.001, 0.05])
-    plt.show()
-
-for max_dist in [1, 5, 10, 20, 40]:
-    for d in data:
-        onesfs = lump_onesfs(d.spectra.normalized_onesfs(), k_max=k_max)
-        onesfs_fitted = lump_onesfs(d.spectra_fitted.normalized_onesfs(), k_max=k_max)
-        twosfs = lump_twosfs(d.spectra.normalized_twosfs(), k_max=k_max)
-        twosfs_fitted = lump_twosfs(d.spectra_fitted.normalized_twosfs(), k_max=k_max)
-
-        if d.model == "beta":
-            color = "C0"
-        else:
-            color = "C1"
-
-        twosfs_adj = twosfs[:max_dist] / max_dist
-        twosfs_adj_fitted = twosfs_fitted[:max_dist] / max_dist
-        ksd_1 = stats.max_ks_distance(lump_onesfs(const_onesfs, k_max=k_max), onesfs)
-        ksd_2 = stats.max_ks_distance(twosfs_adj, twosfs_adj_fitted)
-        plt.plot(ksd_1, ksd_2, ".", color=color)
-        plt.ylabel(r"2-SFS KS distance bw. real and fitted")
-        plt.xlabel(r"1-SFS KS distance from constant-$N$")
-        plt.title(f"Max distance = {max_dist}")
-        plt.ylim([-0.001, 0.05])
-    plt.show()
-
-for max_dist in [1, 5, 10, 20, 40]:
-    for d in data:
-        onesfs = lump_onesfs(d.spectra.normalized_onesfs(), k_max=k_max)
-        onesfs_fitted = lump_onesfs(d.spectra_fitted.normalized_onesfs(), k_max=k_max)
-        twosfs = lump_twosfs(d.spectra.normalized_twosfs(), k_max=k_max)
-        twosfs_fitted = lump_twosfs(d.spectra_fitted.normalized_twosfs(), k_max=k_max)
-
-        if d.model == "beta":
-            color = "C0"
-        else:
-            color = "C1"
-
-        twosfs_adj = twosfs[:max_dist] / max_dist
-        twosfs_adj_fitted = twosfs_fitted[:max_dist] / max_dist
-        kld_1 = kl_div(lump_onesfs(const_onesfs, k_max=k_max), onesfs)
-        kld_2 = kl_div(twosfs_adj, twosfs_adj_fitted)
-        plt.plot(kld_1, kld_2, ".", color=color)
-        plt.ylabel(r"2-SFS KL divergence bw. real and fitted")
-        plt.xlabel(r"1-SFS KL divergence from constant-$N$")
-        plt.title(f"Max distance = {max_dist}")
-        plt.ylim([-0.001, 0.015])
+        plt.ylim([-0.0001, 0.002])
     plt.show()
 
 # +
-d = data[15]
+d = data[5]
 print(d.model, d.params)
 
 n_reps = 1000
@@ -329,17 +255,15 @@ for max_dist in np.arange(4, 26, 3):
     print(f"Power = {power}")
     plt.show()
 
-# +
-n_reps = 1000
-pair_density = 5000
-max_dists = np.arange(4, 26, 3)
 
-for d in data:
-    twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), k_max=k_max)
+# -
+
+
+def compute_power(spectra, spectra_fitted, max_dists, pair_density, n_reps, k_max):
+    twosfs = lump_twosfs(spectra.normalized_twosfs(folded=folded), k_max=k_max)
     twosfs_fitted = lump_twosfs(
-        d.spectra_fitted.normalized_twosfs(folded=folded), k_max=k_max
+        spectra_fitted.normalized_twosfs(folded=folded), k_max=k_max
     )
-
     power = []
     for max_dist in max_dists:
         num_pairs = np.zeros(twosfs.shape[0], dtype=int)
@@ -372,7 +296,16 @@ for d in data:
         power.append(
             np.mean(np.mean(ks_comp[:, None] <= ks_null[None, :], axis=1) < 0.05)
         )
+    return power
 
+
+n_reps = 1000
+pair_density = 5000
+max_dists = np.arange(4, 26, 3)
+for d in data:
+    power = compute_power(
+        d.spectra, d.spectra_fitted, max_dists, pair_density, n_reps, k_max
+    )
     if d.model == "beta":
         color = "C0"
     else:
@@ -380,50 +313,27 @@ for d in data:
     plt.plot(max_dists, power, color=color)
 plt.show()
 
-# +
+n_reps = 1000
+pair_density = 10000
+max_dists = np.arange(4, 26, 3)
+for d in data:
+    power = compute_power(
+        d.spectra, d.spectra_fitted, max_dists, pair_density, n_reps, k_max
+    )
+    if d.model == "beta":
+        color = "C0"
+    else:
+        color = "C1"
+    plt.plot(max_dists, power, color=color)
+plt.show()
+
 n_reps = 1000
 pair_density = 20000
 max_dists = np.arange(4, 26, 3)
-
-for d in data[10:]:
-    twosfs = lump_twosfs(d.spectra.normalized_twosfs(folded=folded), k_max=k_max)
-    twosfs_fitted = lump_twosfs(
-        d.spectra_fitted.normalized_twosfs(folded=folded), k_max=k_max
+for d in data:
+    power = compute_power(
+        d.spectra, d.spectra_fitted, max_dists, pair_density, n_reps, k_max
     )
-
-    power = []
-    for max_dist in max_dists:
-        num_pairs = np.zeros(twosfs.shape[0], dtype=int)
-        for i in range(3, max_dist, 3):
-            num_pairs[i] = pair_density
-
-        nonzero = num_pairs > 0
-
-        n_total = np.sum(num_pairs)
-        ks_comp = np.zeros(n_reps)
-        ks_null = np.zeros(n_reps)
-        for i in range(n_reps):
-            twosfs_resampled = stats.resample_twosfs_pdf(
-                twosfs[nonzero], num_pairs[nonzero]
-            )
-            twosfs_fitted_resampled = stats.resample_twosfs_pdf(
-                twosfs_fitted[nonzero], num_pairs[nonzero]
-            )
-            twosfs_null = (
-                twosfs_fitted[nonzero] * num_pairs[nonzero, None, None] / n_total
-            )
-
-            ks_comp[i] = stats.max_ks_distance(twosfs_resampled, twosfs_null) * np.sqrt(
-                n_total
-            )
-            ks_null[i] = stats.max_ks_distance(
-                twosfs_fitted_resampled, twosfs_null
-            ) * np.sqrt(n_total)
-
-        power.append(
-            np.mean(np.mean(ks_comp[:, None] <= ks_null[None, :], axis=1) < 0.05)
-        )
-
     if d.model == "beta":
         color = "C0"
     else:
