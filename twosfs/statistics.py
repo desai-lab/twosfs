@@ -1,33 +1,10 @@
 """Functions for running statistical tests on twosfs."""
 from functools import partial
-from typing import Any, Optional, Union
+from typing import Iterable, Iterator, Optional, Union
 
 import numpy as np
-from scipy.stats import cauchy, chi2
 
 from twosfs.spectra import Spectra, lump_twosfs
-
-
-def twosfs_pdf(
-    spectra: Spectra, dist: Union[int, list[int]], max_k: int, folded: bool
-) -> np.ndarray:
-    """Get the twosfs for segregating sites as a normalized 2D pdf."""
-    return lump_twosfs(spectra.normalized_twosfs(folded=folded), max_k)[dist, 1:, 1:]
-
-
-def fisher_test(p_values: np.ndarray) -> tuple[float, float]:
-    """Compute the Fisher's test statistic and p-value for an array of p-values."""
-    fisher_stat = -2 * np.sum(np.log(p_values))
-    df = 2 * len(p_values)
-    fisher_p = chi2.sf(fisher_stat, df=df)
-    return fisher_stat, fisher_p
-
-
-def cauchy_test(p_values: np.ndarray) -> tuple[float, float]:
-    """Compute the Cauchy combination test stat and p-value for an array of p-values."""
-    cauchy_stat = np.mean(np.tan(0.5 - p_values) - np.pi)
-    cauchy_p = cauchy.sf(cauchy_stat)
-    return cauchy_stat, cauchy_p
 
 
 def ks_distance(cdf1: np.ndarray, cdf2: np.ndarray) -> float:
@@ -47,50 +24,66 @@ def empirical_pvals(values: np.ndarray, comparisons: list[np.ndarray]):
     return (1 + np.sum(comparisons > values, axis=0)) / (2 + len(comparisons))
 
 
-def resample_twosfs_pdf(input_twosfs_pdf: np.ndarray, n_obs: np.ndarray) -> np.ndarray:
-    """Multinomial sample the twosfs pdf, symmetrize, and normalize."""
-    sampled_pdf = np.zeros_like(input_twosfs_pdf)
-    for i, pdf in enumerate(input_twosfs_pdf):
-        rand_counts = np.random.multinomial(n_obs[i], pdf.ravel()).reshape(pdf.shape)
-        sampled_pdf[i] = (rand_counts + rand_counts.T) / 2
-    return sampled_pdf / np.sum(sampled_pdf)
+def resample_pdf(pdf: np.ndarray, n_obs: int) -> np.ndarray:
+    """Multinomial resample discrete pdf."""
+    rand_counts = np.random.multinomial(n_obs, pdf.ravel()).reshape(pdf.shape)
+    return rand_counts / np.sum(rand_counts)
 
 
-def twosfs_test(
+def symmetrize(pdf: np.ndarray) -> np.ndarray:
+    """Return a symmetrized version of a 2D pdf."""
+    return (pdf + pdf.T) / 2
+
+
+def twosfs_pdf(spectra: Spectra, k_max: int, folded: bool) -> np.ndarray:
+    """Get the twosfs for segregating sites as a normalized 2D pdf."""
+    ret = lump_twosfs(spectra.normalized_twosfs(folded=folded), k_max)[:, 1:, 1:]
+    return ret / np.sum(ret)
+
+
+def resample_marginal_pdfs(pdfs: np.ndarray, n_obs: Iterable[int]) -> np.ndarray:
+    """Resample 2D PDFs along the first axis of a 3D array."""
+    return np.array([resample_pdf(pdf / np.sum(pdf), n) for pdf, n in zip(pdfs, n_obs)])
+
+
+def reweight_and_symmetrize(pdf: np.ndarray, weights: Iterable[float]) -> np.ndarray:
+    """Reweight 3D pdf along first dimension by weights and symmetrize."""
+    ret = np.array([symmetrize(p) * w for p, w in zip(pdf, weights)])
+    return ret / np.sum(ret)
+
+
+def degenerate_pairs(spectra: Spectra, max_distance: int) -> np.ndarray:
+    """Return an array with ones at 4-fold degenerate distances up to max_distance."""
+    ret = np.zeros(len(spectra.windows) - 1)
+    for i in range(3, max_distance + 1, 3):
+        ret[i] = 1
+    return ret
+
+
+def sample_ks_statistics(
     spectra_comp: Spectra,
     spectra_null: Spectra,
-    d_comp: list[int],
-    d_null: list[int],
-    max_k: int,
+    k_max: int,
     folded: bool,
     n_reps: int,
-    resample_comp: bool,
-    num_pairs: Optional[list[int]] = None,
+    num_pairs: np.ndarray,
 ) -> np.ndarray:
-    """Return array of p-values from the twosfs test. For power calculations."""
-    twosfs_comp = twosfs_pdf(spectra_comp, d_comp, max_k, folded)
-    twosfs_null = twosfs_pdf(spectra_null, d_null, max_k, folded)
-    if not num_pairs:
-        num_pairs = spectra_comp.num_pairs[d_comp]
-    if resample_comp:
-        samples_comp = [
-            resample_twosfs_pdf(twosfs_comp, num_pairs) for rep in range(n_reps)
-        ]
-    else:
-        samples_comp = [twosfs_comp]
-    samples_null = [
-        resample_twosfs_pdf(twosfs_null, num_pairs) for rep in range(n_reps)
-    ]
-    ks_comp = [
-        np.array([max_ks_distance(s, n) for s, n in zip(sample, twosfs_null)])
-        for sample in samples_comp
-    ]
-    ks_null = [
-        np.array([max_ks_distance(s, n) for s, n in zip(sample, twosfs_null)])
-        for sample in samples_null
-    ]
-    p_comp = [empirical_pvals(samp, ks_null) for samp in ks_comp]
-    return np.array([fisher_test(samp)[1] for samp in p_comp])
+    """Sample 2-SFS KS statistics between spectra_comp and spectra_null."""
+    nonzero = num_pairs > 0
+    np_nz = num_pairs[nonzero]
+    twosfs_comp = reweight_and_symmetrize(
+        twosfs_pdf(spectra_comp, k_max, folded)[nonzero], np_nz
+    )
+    twosfs_null = reweight_and_symmetrize(
+        twosfs_pdf(spectra_null, k_max, folded)[nonzero], np_nz
+    )
+    ks_values = np.zeros(n_reps)
+    for i in range(n_reps):
+        resampled = reweight_and_symmetrize(
+            resample_marginal_pdfs(twosfs_comp, np_nz), np_nz
+        )
+        ks_values[i] = max_ks_distance(resampled, twosfs_null)
+    return ks_values * np.sqrt(sum(np_nz))
 
 
 def _axis_combinations(n_dims: int) -> list[tuple]:
@@ -118,35 +111,17 @@ def _all_cdfs(pdf: np.ndarray) -> list[np.ndarray]:
 def scan_parameters(
     spectra_comp: Spectra,
     spectra_null: Spectra,
-    pair_densities: list[int],
-    max_ds: list[int],
-    max_k: int,
+    pair_densities: Iterable[int],
+    max_distances: Iterable[int],
+    k_max: int,
+    folded: bool,
     n_reps: int,
-) -> list[dict[str, Any]]:
-    """Scan parameters and compute `n_reps` pvalues for each."""
-    results = []
-    for folded in [True, False]:
-        for pair_density in pair_densities:
-            for max_d in max_ds:
-                d = np.arange(1, max_d)
-                num_pairs = [pair_density] * len(d)
-                p_vals = twosfs_test(
-                    spectra_comp,
-                    spectra_null,
-                    d,
-                    d,
-                    max_k,
-                    folded,
-                    n_reps,
-                    True,
-                    num_pairs,
-                )
-                results.append(
-                    {
-                        "folded": folded,
-                        "max_d": max_d,
-                        "pair_density": pair_density,
-                        "p_vals": p_vals.tolist(),
-                    }
-                )
-    return results
+) -> Iterator[dict[str, Union[int, list[float]]]]:
+    """Compute resampled KS stats scanning over pair densities and max distances."""
+    for pd in pair_densities:
+        for md in max_distances:
+            num_pairs = pd * degenerate_pairs(spectra_comp, md)
+            ks = sample_ks_statistics(
+                spectra_comp, spectra_null, k_max, folded, n_reps, num_pairs
+            )
+            yield {"pair_density": pd, "max_distance": md, "ks_stats": list(ks)}
