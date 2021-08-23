@@ -17,5 +17,7 @@
   "rec_factors": [0.71, 0.79, 0.89, 1.0, 1.12, 1.26, 1.41],
   "k_max": 20,
   "num_epochs": 5,
-  "penalty_coef": 1e-6
+  "penalty_coef": 1e-6,
+  "pair_densities": [1000, 5000, 10000, 20000],
+  "max_distances": [4, 7, 10, 13, 16, 19, 22]
 }

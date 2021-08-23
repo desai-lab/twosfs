@@ -1,5 +1,6 @@
 import numpy as np
 import json
+import gzip
 
 from twosfs.config import configuration_from_json, parse_parameter_string
 from twosfs.simulations import filename2seed, simulate_spectra
@@ -90,6 +91,14 @@ rule add_runs:
     run:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
+
+
+rule compute_ks:
+    output:
+        config.ks_distance_file,
+    input:
+        config.initial_spectra_file,
+        config.fitted_spectra_file,
 
 
 ### OLD STUFF
