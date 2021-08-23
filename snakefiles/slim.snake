@@ -1,44 +1,62 @@
 import numpy as np
 import msprime
 import random
-from slim.sfs_slim import get_tseq
+import json
+import os
+
+from twosfs.config import configuration_from_json, parse_parameter_string
+from slim.sfs_slim import spectra_from_tree_file
 from twosfs.simulations import filename2seed
 
-genome_length = int(1e5)
+config = configuration_from_json("simulation_parameters.json")
 
-rule run_SLiM:
+rule simulate_tree_file:
     output:
-        'simulations/tree_files/gamma_{g}_mu_{mu}_s_{s}_run_{run}.trees'
+        config.tree_file
+    wildcard_constraints:
+        rep="\d+",
     resources:
-        time = 500,
-        mem = 1000,
-    shell:
-        "slim -d \"fname='{output}'\" -d mu=1e-{wildcards.mu} -d s={wildcards.s}/100 -d gamma={wildcards.g}/{genome_length} -d L={genome_length} slim/slim_sim.txt"
+        mem=5000,
+        time=800
+    run:
+        params=parse_parameter_string(wildcards.params)
+        os.system( "slim -d \"fname='{}'\" -d mut_rate={} -d s={} -d rec_rate={} -d L={} -s {} slim/run_slim_simulation.txt".format(output[0].replace('"','\\\"'), params['mut_rate'], params['s'], params['rec_rate'], int(params['L']), filename2seed(output[0])) )
 
-ruleorder: add_runs_from_SLiM > add_runs
+rule spectra_from_SLiM:
+    input:
+        config.tree_file
+    output:
+        temp(config.initial_spectra_file)
+    wildcard_constraints:
+        model="sel",
+        rep="\d+",
+    resources:
+        mem=3000,
+        time=10
+    run:
+        random.seed(filename2seed(output[0]))
+        params = config.slim_parameters
+        samples = random.sample(range(int(2e4)), k=config.slim_parameters["num_samples"])
+        params["samples"] = samples
+        spectra = spectra_from_tree_file(input[0], params)
+
+        spectra.save(output[0])
+
+ruleorder: add_runs_from_SLiM > add_runs 
 
 rule add_runs_from_SLiM:
-    group: 'cleanup'
     output:
-        'simulations/msprime/gamma_{g}_mu_{mu}_s_{s}.npz'
+        "simulations/initial_spectra/model=sel.{params}.rep=all.npz",
     input:
-        expand('simulations/tree_files/gamma_{g}_mu_{mu}_s_{s}_run_{rep}.trees', rep = np.arange(1000), allow_missing = True)
-    resources: time=800,
+        expand(
+            "simulations/initial_spectra/model=sel.{params}.rep={rep}.npz",
+            rep=range(config.slim_parameters["nruns"]),
+            allow_missing=True,
+        ),
+    resources:
+        time=10,
+        mem=1000,
     run:
-        for rep, fname in enumerate(input):
-            random.seed(filename2seed(fname))
-            samples = random.sample(range(20000), k = 100)
-            num_bp = 100
-            recombination_rate = float(wildcards.g) * 1/genome_length
-            num_trees = 500
-            print(genome_length)
-            windows = np.arange(start = 0, stop = num_bp + 1, step = 1)
-            tseq_array = get_tseq( str(fname), length = genome_length, samples = samples, num_trees = num_trees,
-                                num_bp = num_bp )
-            spectra = sum( spectra_from_TreeSequence(windows, recombination_rate, tseq) for tseq in tseq_array )
-            if rep == 0:
-                total = spectra
-            else:
-                total += spectra
-
+        total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
+

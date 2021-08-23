@@ -1,157 +1,140 @@
 import numpy as np
+import json
 
-import msprime
-from twosfs import spectra_from_TreeSequence, load_spectra
-from twosfs.simulations import beta_timescale, filename2seed
-from twosfs.demographicmodel import scaled_demographic_events, DemographicModel
+from twosfs.config import configuration_from_json, parse_parameter_string
+from twosfs.simulations import filename2seed, simulate_spectra
+from twosfs.spectra import add_spectra, load_spectra
+from twosfs.statistics import scan_parameters
 
-def parameter_map(prefix):
-    """Convert a file prefix to a set of msprime parameters."""
-    default_parameters = {
-        'sample_size': 100,
-        'length': 100,
-        'recombination_rate': 0.1 / 4, # Scaled so that rT2 = 0.1 per site
-        'num_replicates': 10000,
-    }
-    if prefix == 'test':
-        parameters = {'sample_size': 21, 'num_replicates': 100}
-    elif prefix == 'kingman':
-        parameters = {}
-    elif prefix.startswith('xibeta'):
-        alpha = float(prefix.split('alpha=')[1])
-        # Rescale recombination to keep r*T_2 constant
-        r = default_parameters['recombination_rate'] / beta_timescale(alpha)
-        parameters = {'model': msprime.BetaCoalescent(alpha=alpha),
-                      'recombination_rate':r}
-    elif prefix.startswith('expgrowth'):
-        p = {elem.split("=")[0] : float(elem.split("=")[1]) for elem in prefix.split('-')[1:]}
-        g = p["g"]
-        t = p["t"]
-        dm = DemographicModel()
-        dm.add_epoch(0.0, 1.0, g)
-        dm.add_epoch(t, np.exp(-g*t))
-        dm.rescale()
-        parameters = {'demographic_events': dm.get_demographic_events()}
-    else:
-        raise KeyError('Simulation prefix not found')
-    return dict(default_parameters, **parameters)
+config = configuration_from_json("simulation_parameters.json")
 
-
-d_alpha = 0.05
-ALPHAS = [f'{a:.2f}' for a in np.arange(1 + d_alpha, 2.0, d_alpha)]
-GS = [f'{g:.1f}' for g in [0.5, 1.0, 2.0]]
-TS = [f'{t:.1f}' for t in [0.5, 1.0, 2.0]]
-
-rule simulations:
-    group: 'cleanup'
+rule simulate_initial_spectra_all:
     input:
-        'simulations/msprime/kingman.npz',
-        expand([
-                'simulations/msprime/xibeta-alpha={alpha}.npz',
-                'simulations/msprime/expgrowth-g={g}-t={t}.npz',
-                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
-                "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
-                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz',
-                "simulations/msprime/fastNeutrino.expgrowth-g={g}-t={t}.{model}.npz",
-                ],
-                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
+        list(config.initial_spectra_files()),
+
+
+rule fit_demographies_all:
+    input:
+        list(config.fitted_demography_files()),
+
+
+rule simulate_fitted_spectra_all:
+    input:
+        list(config.fitted_spectra_files()),
+
+
+rule simulate_initial_spectra:
     output:
-        'simulations.tgz'
-    shell:
-        'tar -czf {output} {input}'
-
-rule simulate_models:
-    input:
-        expand([
-                'simulations/msprime/fastNeutrino.xibeta-alpha={alpha}.{model}.npz',
-                "simulations/msprime/fastNeutrino.expgrowth-g={g}-t={t}.{model}.npz",
-                ],
-                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
-
-rule fit_models:
-    input:
-        expand([
-                'simulations/fastNeutrino/xibeta-alpha={alpha}.{model}.txt',
-                "simulations/fastNeutrino/expgrowth-g={g}-t={t}.{model}.txt",
-                ],
-                alpha=ALPHAS, g=GS, t=TS, model=['3Epoch'])
-
-rule initial_simulations:
-    input:
-        'simulations/msprime/kingman.npz',
-        expand([
-                'simulations/msprime/xibeta-alpha={alpha}.npz',
-                'simulations/msprime/expgrowth-g={g}-t={t}.npz',
-                ],
-                alpha=ALPHAS, g=GS, t=TS)
-
-ruleorder: msprime_from_fastNeutrino > msprime
-
-rule msprime:
-    output:
-        temp('simulations/.tmp/{prefix}.rep{rep}.npz')
+        temp(config.initial_spectra_file),
+    wildcard_constraints:
+        model=not "sel",
+        rep="\d+",
     run:
-        parameters = parameter_map(wildcards.prefix)
-        parameters['random_seed'] = filename2seed(output[0])
-        sims = msprime.simulate(**parameters)
-        windows = np.arange(parameters['length'] + 1)
-        spectra = sum(spectra_from_TreeSequence(windows,
-                                                parameters['recombination_rate'],
-                                                tseq)
-                      for tseq in sims)
+        spectra = simulate_spectra(
+            model=wildcards.model,
+            model_parameters=parse_parameter_string(wildcards.params),
+            msprime_parameters=config.msprime_parameters,
+            scaled_recombination_rate=config.scaled_recombination_rate,
+            random_seed=filename2seed(output[0]),
+        )
         spectra.save(output[0])
 
-rule msprime_from_fastNeutrino:
+
+rule fit_demographies:
     input:
-        "simulations/fastNeutrino/{prefix}.txt"
+        config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
     output:
-        temp('simulations/.tmp/fastNeutrino.{prefix}.rep{rep}.npz')
+        config.fitted_demography_file,
+    resources:
+        time=10,
+        mem=1000,
     run:
-        if wildcards.prefix == 'test':
-            parameters = parameter_map('test')
-        else:
-            # Use Kingman parameters, but add demographic events properly scaled
-            parameters = parameter_map('kingman')
-        parameters['demographic_events'] = scaled_demographic_events(input[0])
-        parameters['random_seed'] = filename2seed(output[0])
-        sims = msprime.simulate(**parameters)
-        windows = np.arange(parameters['length'] + 1)
-        spectra = sum(spectra_from_TreeSequence(windows,
-                                                parameters['recombination_rate'],
-                                                tseq)
-                      for tseq in sims)
+        spectra = load_spectra(input[0])
+        fit = spectra.fit_pwc_demography(
+            folded=wildcards.folded == "True",
+            k_max=config.k_max,
+            num_epochs=config.num_epochs,
+        )
+        with open(output[0], "w") as f:
+            f.write(fit.toJson())
+
+
+rule simulate_fitted_spectra:
+    output:
+        temp(config.fitted_spectra_file),
+    input:
+        config.fitted_demography_file,
+    wildcard_constraints:
+        rep="\d+",
+    resources:
+        time=60,
+        mem=1000,
+    run:
+        with open(input[0], "r") as f:
+            model_parameters = json.load(f)
+        r = config.scaled_recombination_rate * float(wildcards.rec_factor)
+        spectra = simulate_spectra(
+            model="pwc",
+            model_parameters=model_parameters,
+            msprime_parameters=config.msprime_parameters,
+            scaled_recombination_rate=r,
+            random_seed=filename2seed(output[0]),
+        )
         spectra.save(output[0])
+
 
 rule add_runs:
-    group: 'cleanup'
     output:
-        'simulations/msprime/{prefix}.npz'
+        "{prefix}.rep=all.npz",
     input:
-        expand('simulations/.tmp/{prefix}.rep{rep}.npz', rep=range(10), allow_missing=True)
+        expand(
+            "{prefix}.rep={rep}.npz",
+            rep=range(config.nruns),
+            allow_missing=True,
+        ),
+    resources:
+        time=60,
+        mem=1000,
     run:
-        total = sum(load_spectra(infn) for infn in input)
+        total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
 
-rule fastNeutrino:
-    input:
-        datafile = "simulations/.tmp/{prefix}.sfs.txt",
-        modelfile = "twosfs/models/{model}.txt"
-    output:
-        "simulations/fastNeutrino/{prefix}.{model}.txt"
-    log:
-        "log/fastNeutrino.{prefix}.{model}.log"
-    shell:
-        "fastNeutrino --maxB 20 --maxRandomRestarts 100 "
-        "--modelFile {input.modelfile} "
-        "--inferredModelOutputFile {output} "
-        "< {input.datafile} "
-        "> {log}"
 
-rule fastNeutrinoInput:
+### OLD STUFF
+
+max_k = 20
+pair_densities = [100, 1000, 10000]
+max_ds = [2, 6, 11, 16]
+n_reps = 1000
+
+
+rule compute_pvalues:
     input:
-        simulation_file = 'simulations/msprime/{prefix}.npz'
+        "simulations/msprime/{prefix}.npz",
+        "simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
     output:
-        sfs_file = temp("simulations/.tmp/{prefix}.sfs.txt")
+        "simulations/pvalues/{prefix}.{model}.json",
     run:
-        spectra = load_spectra(input.simulation_file)
-        spectra.export_to_fastNeutrino(output.sfs_file)
+        spectra_comp = load_spectra(input[0])
+        spectra_null = load_spectra(input[1])
+        results = scan_parameters(
+            spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps
+        )
+        with open(output[0], "w") as outfile:
+            json.dump(results, outfile)
+
+
+rule compute_pvalues_recombination:
+    input:
+        "simulations/msprime/fastNeutrino.{prefix}.{model}.rec={r_factor}.npz",
+        "simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
+    output:
+        "simulations/pvalues/{prefix}.{model}.rec={r_factor}.json",
+    run:
+        spectra_comp = load_spectra(input[0])
+        spectra_null = load_spectra(input[1])
+        results = scan_parameters(
+            spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps
+        )
+        with open(output[0], "w") as outfile:
+            json.dump(results, outfile)

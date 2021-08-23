@@ -1,7 +1,10 @@
 *.ipynb
+env/
 .snakemake/
 simulations/
 log/
 twosfs.egg-info/
 *simulations.tgz
 .hypothesis
+data/
+*.tgz

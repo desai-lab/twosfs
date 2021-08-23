@@ -1,0 +1,31 @@
+{
+  "simulation_directory": "simulations",
+  "nruns": 100,
+  "scaled_recombination_rate": 0.1,
+  "msprime_parameters": {
+    "samples": 50,
+    "ploidy": 2,
+    "sequence_length": 100,
+    "num_replicates": 10000
+  },
+  "alphas": [
+    1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45, 1.5, 1.55, 1.6, 1.65, 1.7,
+    1.75, 1.8, 1.85, 1.9, 1.95
+  ],
+  "growth_rates": [0.5, 1.0, 2.0],
+  "end_times": [0.5, 1.0, 2.0],
+  "rec_factors": [0.71, 0.79, 0.89, 1.0, 1.12, 1.26, 1.41],
+  "k_max": 20,
+  "num_epochs": 4,
+  "slim_parameters": { 
+    "num_samples": 100,
+    "genome_length": 1e5,
+    "recombination_rate": 1e-5,
+    "num_bp": 100,
+    "num_trees": 500,
+    "genome_cutoff": 0.2,
+    "nruns": 1000
+  },
+  "positive_sel_coeffs": [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.2],
+  "positive_mut_rates": [1e-9, 1e-10]
+}

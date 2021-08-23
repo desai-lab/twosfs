@@ -1,10 +1,14 @@
 """Class and functions for manipulating SFS and 2SFS."""
-
+from collections.abc import Iterable
+from copy import deepcopy
+from typing import Optional
 
 import attr
 import attr.validators as v
 import numpy as np
 import tskit
+
+from fitsfs.fitsfs import fit_sfs
 
 # Converters
 
@@ -69,7 +73,7 @@ def _zero_if_num_pairs(instance, attribute, value):
         )
 
 
-@attr.s(frozen=True, eq=False)
+@attr.s(eq=False)
 class Spectra(object):
     """
     Stores SFS and 2SFS data.
@@ -152,8 +156,8 @@ class Spectra(object):
         return (
             self.num_samples == other.num_samples
             and self.windows.shape == other.windows.shape
-            and np.all(self.windows == other.windows)
-            and self.recombination_rate == other.recombination_rate
+            and bool(np.all(self.windows == other.windows))
+            and np.isclose(self.recombination_rate, other.recombination_rate)
         )
 
     def __add__(self, other) -> "Spectra":
@@ -163,60 +167,48 @@ class Spectra(object):
             return self.__add__(zero_spectra_like(self))
         elif type(self) is not type(other):
             return NotImplemented
-        if not self.compatible(other):
-            raise ValueError("Can not add incompatible spectra.")
-        return Spectra(
-            self.num_samples,
-            self.windows,
-            self.recombination_rate,
-            self.num_sites + other.num_sites,
-            self.num_pairs + other.num_pairs,
-            self.onesfs + other.onesfs,
-            self.twosfs + other.twosfs,
-        )
+        return add_spectra((self, other))
 
     def __radd__(self, other) -> "Spectra":
         """Addition of spectra is commutative."""
         return self.__add__(other)
 
-    def normalized_onesfs(self, folded=False) -> np.ndarray:
+    def normalized_onesfs(
+        self, folded: bool = False, k_max: Optional[int] = None
+    ) -> np.ndarray:
         """Return the SFS normalized to one."""
+        if not k_max:
+            k_max = self.num_samples
         normed = self.onesfs / np.sum(self.onesfs)
         if folded:
-            return foldonesfs(normed)
+            return lump_onesfs(foldonesfs(normed), k_max=k_max)
         else:
-            return normed
+            return lump_onesfs(normed, k_max=k_max)
 
-    def normalized_twosfs(self, folded=False) -> np.ndarray:
+    def normalized_twosfs(
+        self, folded: bool = False, k_max: Optional[int] = None
+    ) -> np.ndarray:
         """Return the 2SFS normalized to one in each window."""
+        if not k_max:
+            k_max = self.num_samples
         normed = self.twosfs / np.sum(self.twosfs, axis=(1, 2))[:, None, None]
         if folded:
-            return foldtwosfs(normed)
+            return lump_twosfs(foldtwosfs(normed), k_max=k_max)
         else:
-            return normed
+            return lump_twosfs(normed, k_max=k_max)
 
-    def t2(self) -> float:
-        """Return the pairwise coalescence time (proportional to Tajima's pi)."""
-        return t2(self.onesfs / self.num_sites)
+    def tajimas_pi(self) -> float:
+        """Return the Tajima's pi (average pairwise diversity)."""
+        return tajimas_pi(self.onesfs / self.num_sites)
 
-    def export_to_fastNeutrino(
-        self, filename: str, sfs_0: float = 100.0, folded: bool = False
-    ) -> None:
-        """Write SFS as a fastNeutrino input file.
+    def scaled_recombination_rate(self) -> float:
+        """Return pi * r (or 2 * E[T_2] * r)."""
+        return self.tajimas_pi() * self.recombination_rate
 
-        Parameters
-        ----------
-        filename : str
-            The name of the fastNeutrino input file to write.
-        sfs_0 : int
-            The number in the zero-class. This does not effect fitting.
-            (Default=100).
-        folded : bool
-            If True, fold the sfs before exporting.
-        """
-        export_to_fastNeutrino(
-            filename, self.normalized_onesfs(folded=folded), sfs_0=sfs_0
-        )
+    def fit_pwc_demography(self, **kwargs) -> tuple[list[float], list[float]]:
+        """Fit a piecewise constant population size to the onesfs."""
+        sfs = self.normalized_onesfs()[1:-1]
+        return fit_sfs(sfs, **kwargs)
 
     def save(self, output_file) -> None:
         """Save Spectra to a .npz file.
@@ -227,6 +219,20 @@ class Spectra(object):
             May be a filename string or a file handle.
         """
         np.savez_compressed(output_file, **self.__dict__)
+
+
+def add_spectra(specs: Iterable[Spectra]):
+    """Add an iterable of compatible spectra."""
+    it = iter(specs)
+    ret = deepcopy(next(it))
+    for s in it:
+        if not ret.compatible(s):
+            raise ValueError("Spectra are incompatible.")
+        ret.num_sites += s.num_sites
+        ret.num_pairs += s.num_pairs
+        ret.onesfs += s.onesfs
+        ret.twosfs += s.twosfs
+    return ret
 
 
 # Spectra constructors
@@ -265,11 +271,58 @@ def spectra_from_TreeSequence(
 ) -> Spectra:
     """Construct a Spectra object from a tskit.TreeSeqeunce."""
     num_samples = tseq.sample_size
-    num_sites = len(windows) - 1
-    num_pairs = np.ones(len(windows) - 1)
-    afs = tseq.allele_frequency_spectrum(mode="branch", windows=windows, polarised=True)
-    onesfs = np.mean(afs, axis=0)
+    num_sites = windows[-1] - windows[0]
+    num_pairs = np.diff(windows)
+    afs = tseq.allele_frequency_spectrum(
+        mode="branch", windows=windows, polarised=True, span_normalise=False
+    )
+    onesfs = np.sum(afs, axis=0)
     twosfs = afs[0, :, None] * afs[:, None, :]
+    return Spectra(
+        num_samples, windows, recombination_rate, num_sites, num_pairs, onesfs, twosfs
+    )
+
+
+def spectra_from_sites(
+    num_samples: int,
+    windows: np.ndarray,
+    recombination_rate: float,
+    allele_count_dict: dict[int, int],
+) -> Spectra:
+    """Create a Spectra from a dictionary of allele counts and positions.
+
+    Parameters
+    ----------
+    num_samples : int
+        The sample size (i.e. number of haploid genomes.)
+    windows : ndarray
+        The boundaries of the windows for computing the 2SFS
+    recombination_rate : float
+       The per-site recombination rate.
+    allele_count_dict : Dict[int, int]
+        A dictionary of `position: allele_count` pairs
+
+    Returns
+    -------
+    Spectra
+
+    """
+    onesfs = np.zeros(num_samples + 1)
+    twosfs = np.zeros((len(windows) - 1, num_samples + 1, num_samples + 1))
+    num_sites = 0
+    num_pairs = np.zeros(len(windows) - 1)
+    for pos, ac1 in allele_count_dict.items():
+        num_sites += 1
+        onesfs[ac1] += 1
+        for i, dist in enumerate(windows[:-1]):
+            for d in range(dist, windows[i + 1]):
+                try:
+                    ac2 = allele_count_dict[pos + d]
+                except KeyError:
+                    continue
+                num_pairs[i] += 1
+                twosfs[i, ac1, ac2] += 1
+                twosfs[i, ac2, ac1] += 1
     return Spectra(
         num_samples, windows, recombination_rate, num_sites, num_pairs, onesfs, twosfs
     )
@@ -298,49 +351,27 @@ def foldtwosfs(twosfs: np.ndarray) -> np.ndarray:
     return folded
 
 
-def lump_onesfs(onesfs: np.ndarray, kmax: int) -> np.ndarray:
-    """Lump all sfs bins for k>=kmax into one bin."""
-    onesfs_lumped = np.zeros(kmax + 1)
-    onesfs_lumped[:-1] = onesfs[:kmax]
-    onesfs_lumped[-1] = np.sum(onesfs[kmax:])
+def lump_onesfs(onesfs: np.ndarray, k_max: int) -> np.ndarray:
+    """Lump all sfs bins for k>=k_max into one bin."""
+    onesfs_lumped = np.zeros(k_max + 1)
+    onesfs_lumped[:-1] = onesfs[:k_max]
+    onesfs_lumped[-1] = np.sum(onesfs[k_max:])
     return onesfs_lumped
 
 
-def lump_twosfs(twosfs: np.ndarray, kmax: int) -> np.ndarray:
-    """Lump all 2-sfs bins for k>=kmax into one bin."""
-    twosfs_lumped = np.zeros((twosfs.shape[0], kmax + 1, kmax + 1))
-    twosfs_lumped[:, :-1, :-1] = twosfs[:, :kmax, :kmax]
-    twosfs_lumped[:, -1, :-1] = np.sum(twosfs[:, kmax:, :kmax], axis=1)
-    twosfs_lumped[:, :-1, -1] = np.sum(twosfs[:, :kmax, kmax:], axis=2)
-    twosfs_lumped[:, -1, -1] = np.sum(twosfs[:, kmax:, kmax:], axis=(1, 2))
+def lump_twosfs(twosfs: np.ndarray, k_max: int) -> np.ndarray:
+    """Lump all 2-sfs bins for k>=k_max into one bin."""
+    twosfs_lumped = np.zeros((twosfs.shape[0], k_max + 1, k_max + 1))
+    twosfs_lumped[:, :-1, :-1] = twosfs[:, :k_max, :k_max]
+    twosfs_lumped[:, -1, :-1] = np.sum(twosfs[:, k_max:, :k_max], axis=1)
+    twosfs_lumped[:, :-1, -1] = np.sum(twosfs[:, :k_max, k_max:], axis=2)
+    twosfs_lumped[:, -1, -1] = np.sum(twosfs[:, k_max:, k_max:], axis=(1, 2))
     return twosfs_lumped
 
 
-def t2(onesfs: np.ndarray) -> float:
+def tajimas_pi(onesfs: np.ndarray) -> float:
     """Compute the average pairwise diversity from an SFS."""
     n = len(onesfs) - 1
     k = np.arange(n + 1)
     weights = 2 * k * (n - k) / (n * (n - 1))
     return np.dot(onesfs, weights)
-
-
-def export_to_fastNeutrino(filename: str, sfs, sfs_0=100):
-    """Write SFS as a fastNeutrino input file.
-
-    Parameters
-    ----------
-    filename : str
-        The name of the fastNeutrino input file to write.
-    sfs : array_like
-        Length n+1 array containing the site frequency spectrum.
-    sfs_0 : int
-        The number in the zero-class. This does not effect fitting.
-        (Default=100).
-    """
-    n = len(sfs) - 1
-    # Normalize sfs to have T_2 = 4.
-    sfs *= 4 / t2(sfs)
-    sfs[0] = sfs_0
-    with open(filename, "w") as outfile:
-        outfile.write(f"{n}\t1\n")
-        outfile.write("\n".join(map(str, sfs)) + "\n")

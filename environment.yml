@@ -1,0 +1,22 @@
+name: twosfs
+channels:
+  - defaults
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.9
+  - pip>=21.1
+  - snakemake~=5.26
+  - pyslim
+  - matplotlib~=3.3
+  - jupytext~=1.11
+  - jupyterlab~=3.0
+  - nodejs
+  - numpy
+  - scipy
+  - pytest
+  - hypothesis
+  - pre-commit
+  - pip:
+      - -e .
+      - -e git://github.com/dp-rice/fitsfs#egg=fitsfs

@@ -1,0 +1,35 @@
+// Script for the SLiM simulations
+// Takes mutation rate, mutation effect size (s), genome length (L),
+// and recombination rate as command line arguments
+
+
+initialize() {
+        initializeTreeSeq();
+	if (s == 0) {
+	        initializeMutationRate(0);
+	}
+	else {
+	        initializeMutationRate(mut_rate);
+	}
+        initializeMutationType('m1', 1.0, 'f', s);
+        initializeGenomicElementType('g1', m1, 1.0);
+        initializeGenomicElement(g1, 0, L-1);
+        initializeRecombinationRate(rec_rate);
+}
+
+1 {
+        sim.addSubpop('p1', 1e4); // The population size is 10,000 diploid individuals
+        print(fname);
+}
+
+late() {
+        if (sim.generation % 1000 == 0) {
+                print(sim.generation); // If a simulation fails, gives an estimate how long it ran 
+        }
+}
+
+2e5 late() {
+	sim.treeSeqSimplify();
+	sim.treeSeqOutput(fname);
+        sim.simulationFinished();
+}

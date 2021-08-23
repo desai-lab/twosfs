@@ -1,0 +1,13 @@
+snakemake~=5.26
+pyslim
+matplotlib~=3.3
+jupytext~=1.11
+jupyterlab~=3.0
+nodejs
+numpy
+scipy
+pytest
+hypothesis
+pre-commit
+-e git://github.com/dp-rice/fitsfs@v0.0.1-alpha#egg=fitsfs
+-e .

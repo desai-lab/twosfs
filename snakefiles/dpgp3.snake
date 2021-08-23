@@ -1,0 +1,133 @@
+import numpy as np
+import gzip
+from twosfs.spectra import add_spectra, load_spectra, spectra_from_sites
+from twosfs.data import get_allele_counts_at_sites
+
+# ----- Definitions ----- #
+
+CHROMS = ["Chr" + c for c in ["2L", "2R", "3L", "3R"]]
+CHROM_LENGTHS = {
+    "Chr2L": 23011544,
+    "Chr2R": 21146708,
+    "Chr3L": 24543557,
+    "Chr3R": 27905053,
+}
+
+# The Starting and Ending locus positions (in 100KB) for fastNeutrino
+# This focuses on the central region of each chromosome arm.
+LOCUS_START = {"Chr2L": 10, "Chr2R": 60, "Chr3L": 10, "Chr3R": 100}
+LOCUS_END = {"Chr2L": 170, "Chr2R": 190, "Chr3L": 170, "Chr3R": 260}
+
+num_samples = 100
+recombination_rate = 0.067
+cov_cutoff = 90
+windows = np.arange(20)
+
+# Path to where the data is stored.
+DATA_PATH = "data/DPGP3/"
+
+# ------  Rules ----- #
+
+
+rule dmel:
+    input:
+        DATA_PATH + "msprime/AllChroms.3Epoch.npz",
+
+
+rule separate_4d_sites:
+    input:
+        DATA_PATH + "dmel-4Dsites.txt.gz",
+    output:
+        DATA_PATH + "{chrom}.4Dsites.txt.gz",
+    shell:
+        """gunzip -c {input} | awk '{{if ($1 == "{wildcards.chrom}") print $2 - 1}}' | gzip -c > {output}"""
+
+
+rule make_spectra:
+    input:
+        sites=DATA_PATH + "{chrom}.4Dsites.txt.gz",
+        allele_counts=DATA_PATH + "{chrom}.mac.txt.gz",
+    output:
+        DATA_PATH + "{chrom}.spectra.npz",
+    run:
+        sites = np.loadtxt(input.sites, dtype=int)
+        start = LOCUS_START[wildcards.chrom] * 1e5
+        end = LOCUS_END[wildcards.chrom] * 1e5
+        central_sites = sites[(sites >= start) & (sites < end)]
+        with gzip.open(input.allele_counts) as infile:
+            mac_dict = get_allele_counts_at_sites(infile, central_sites, cov_cutoff)
+        spectra = spectra_from_sites(num_samples, windows, recombination_rate, mac_dict)
+        spectra.save(output[0])
+
+
+rule make_spectra_all:
+    input:
+        expand(DATA_PATH + "{chrom}.spectra.npz", chrom=CHROMS),
+    output:
+        DATA_PATH + "AllChroms.spectra.npz",
+    run:
+        total = add_spectra(load_spectra(infn) for infn in input)
+        total.save(output[0])
+
+
+rule dmel_msprime:
+    input:
+        DATA_PATH + "fastNeutrino/{prefix}.txt",
+    output:
+        temp(DATA_PATH + ".tmp/fastNeutrino.{prefix}.rep{rep}.npz"),
+    run:
+        parameters = {
+            "sample_size": num_samples,
+            "length": windows[-1],
+            "recombination_rate": recombination_rate / 4,
+            "num_replicates": 10000,
+            "demographic_events": scaled_demographic_events(input[0]),
+            "random_seed": filename2seed(output[0]),
+        }
+        sims = msprime.simulate(**parameters)
+        spectra = add_spectra(
+            spectra_from_TreeSequence(windows, parameters["recombination_rate"], tseq)
+            for tseq in sims
+        )
+        spectra.save(output[0])
+
+
+rule dmel_add_runs:
+    output:
+        DATA_PATH + "msprime/{prefix}.npz",
+    input:
+        expand(
+            DATA_PATH + ".tmp/fastNeutrino.{prefix}.rep{rep}.npz",
+            rep=range(10),
+            allow_missing=True,
+        ),
+    run:
+        total = add_spectra(load_spectra(infn) for infn in input)
+        total.save(output[0])
+
+
+rule dmel_fastNeutrino:
+    input:
+        datafile=DATA_PATH + ".tmp/{chrom}.sfs.txt",
+        modelfile="twosfs/models/{model}.txt",
+    output:
+        DATA_PATH + "fastNeutrino/{chrom}.{model}.txt",
+    log:
+        "log/fastNeutrino.{chrom}.{model}.log",
+    shell:
+        "fastNeutrino --maxB 20 --maxRandomRestarts 100 "
+        "--foldSpectrum "
+        "--modelFile {input.modelfile} "
+        "--inferredModelOutputFile {output} "
+        "< {input.datafile} "
+        "> {log}"
+
+
+rule dmel_fastNeutrinoInput:
+    input:
+        data_file=DATA_PATH + "{chrom}.spectra.npz",
+    output:
+        sfs_file=temp(DATA_PATH + ".tmp/{chrom}.sfs.txt"),
+    run:
+        spectra = load_spectra(input.data_file)
+        spectra.export_to_fastNeutrino(output.sfs_file)
