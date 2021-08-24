@@ -29,6 +29,10 @@ class Configuration:
     # Fitting parameters
     k_max: int
     num_epochs: int
+    penalty_coef: float
+    # Parameters for power calculations
+    pair_densities: list[int]
+    max_distances: list[int]
 
     def __post_init__(self):
         """Initialize filename templates."""

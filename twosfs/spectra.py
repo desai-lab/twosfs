@@ -7,8 +7,7 @@ import attr
 import attr.validators as v
 import numpy as np
 import tskit
-
-from fitsfs.fitsfs import fit_sfs
+from fitsfs.fitsfs import FittedPWCModel, fit_sfs
 
 # Converters
 
@@ -205,7 +204,7 @@ class Spectra(object):
         """Return pi * r (or 2 * E[T_2] * r)."""
         return self.tajimas_pi() * self.recombination_rate
 
-    def fit_pwc_demography(self, **kwargs) -> tuple[list[float], list[float]]:
+    def fit_pwc_demography(self, **kwargs) -> FittedPWCModel:
         """Fit a piecewise constant population size to the onesfs."""
         sfs = self.normalized_onesfs()[1:-1]
         return fit_sfs(sfs, **kwargs)

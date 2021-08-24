@@ -19,7 +19,6 @@ initialize() {
 
 1 {
         sim.addSubpop('p1', 1e4); // The population size is 10,000 diploid individuals
-        print(fname);
 }
 
 late() {
