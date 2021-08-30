@@ -2,7 +2,7 @@
 import json
 from dataclasses import dataclass, field
 from os import PathLike
-from typing import Any, Iterator, Union, Dict, List
+from typing import Any, Dict, Iterator, List, Union
 
 
 @dataclass
@@ -25,7 +25,7 @@ class Configuration:
     rec_factors: List[float]
     positive_sel_coeffs: List[float]
     positive_mut_rates: List[float]
-    
+
     # Fitting parameters
     k_max: int
     num_epochs: int
@@ -68,14 +68,21 @@ class Configuration:
         for s in self.positive_sel_coeffs:
             for mu in self.positive_mut_rates:
                 yield "pos_sel", dict(s=s, mu=mu)
-        '''
+        """
         for s in self.negative_sel_coeffs:
             for mu in self.negative_mut_rates:
                 yield "neg_sel", dict(s=s, mu=mu)
-        '''
+        """
+
     def format_initial_spectra_file(self, model: str, params: dict) -> str:
         """Get an initial spectra filename."""
         return self.initial_spectra_file.format(
+            model=model, params=make_parameter_string(params), rep="all"
+        )
+
+    def format_tree_file(self, model: str, params: dict) -> str:
+        """Get an initial tree filename."""
+        return self.tree_file.format(
             model=model, params=make_parameter_string(params), rep="all"
         )
 
@@ -117,9 +124,9 @@ class Configuration:
         """Iterate all initial spectra files."""
         return map(lambda x: self.format_initial_spectra_file(*x), self.iter_models())
 
-    def initial_tree_files(self) -> Iterator[str]:
+    def tree_files(self) -> Iterator[str]:
         """Iterate all initial tree files from SLiM."""
-        return map(lambda x: self.format_initial_tree_file(*x), self.iter_models())
+        return map(lambda x: self.format_tree_file(*x), self.iter_models())
 
     def fitted_demography_files(self) -> Iterator[str]:
         """Iterate all fitted demography files."""
