@@ -13,6 +13,7 @@ class Configuration:
     initial_spectra_file: str = field(init=False)
     fitted_demography_file: str = field(init=False)
     fitted_spectra_file: str = field(init=False)
+    ks_distance_file: str = field(init=False)
     # number of parallel msprime jobs
     nruns: int
     #  2 r * mean_coalescence_time
@@ -33,6 +34,7 @@ class Configuration:
     # Parameters for power calculations
     pair_densities: list[int]
     max_distances: list[int]
+    n_reps: int
 
     def __post_init__(self):
         """Initialize filename templates."""
@@ -52,6 +54,10 @@ class Configuration:
         self.tree_file = (
             self.simulation_directory
             + "/tree_files/model={model}.params={params}.rep={rep}.trees"
+        )
+        self.ks_distance_file = (
+            self.simulation_directory
+            + "/ks_distances/model={model}.params={params}.json.gz"
         )
 
     def iter_models(self) -> Iterator[tuple[str, dict]]:
@@ -83,6 +89,12 @@ class Configuration:
     def format_tree_file(self, model: str, params: dict) -> str:
         """Get an initial tree filename."""
         return self.tree_file.format(
+            model=model, params=make_parameter_string(params), rep="all"
+        )
+
+    def format_ks_distance_file(self, model: str, params: dict) -> str:
+        """Get a ks distance filename."""
+        return self.ks_distance_file.format(
             model=model, params=make_parameter_string(params), rep="all"
         )
 
@@ -127,6 +139,10 @@ class Configuration:
     def tree_files(self) -> Iterator[str]:
         """Iterate all initial tree files from SLiM."""
         return map(lambda x: self.format_tree_file(*x), self.iter_models())
+
+    def ks_distance_files(self) -> Iterator[str]:
+        """Iterate all ks distance files."""
+        return map(lambda x: self.format_ks_distance_file(*x), self.iter_models())
 
     def fitted_demography_files(self) -> Iterator[str]:
         """Iterate all fitted demography files."""

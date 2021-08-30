@@ -86,6 +86,13 @@ def sample_ks_statistics(
     return ks_values * np.sqrt(sum(np_nz))
 
 
+def threefold_degen_sites(size, max_distance):
+    """Return an array with ones at multiples of three up to max_distance."""
+    ret = np.zeros(size, dtype=int)
+    ret[range(3, max_distance + 1, 3)] = 1
+    return ret
+
+
 def _axis_combinations(n_dims: int) -> list[tuple]:
     if n_dims <= 0:
         return [()]

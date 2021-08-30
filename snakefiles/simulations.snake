@@ -5,9 +5,10 @@ import gzip
 from twosfs.config import configuration_from_json, parse_parameter_string
 from twosfs.simulations import filename2seed, simulate_spectra
 from twosfs.spectra import add_spectra, load_spectra
-from twosfs.statistics import scan_parameters
+from twosfs.statistics import threefold_degen_sites, sample_ks_statistics
 
 config = configuration_from_json("simulation_parameters.json")
+
 
 rule simulate_initial_spectra_all:
     input:
@@ -22,6 +23,11 @@ rule fit_demographies_all:
 rule simulate_fitted_spectra_all:
     input:
         list(config.fitted_spectra_files()),
+
+
+rule compute_power_all:
+    input:
+        list(config.ks_distance_files()),
 
 
 rule simulate_initial_spectra:
@@ -102,49 +108,58 @@ rule add_runs:
         total.save(output[0])
 
 
-rule compute_ks:
+rule compute_power:
     output:
         config.ks_distance_file,
     input:
-        config.initial_spectra_file,
-        config.fitted_spectra_file,
-
-
-### OLD STUFF
-
-max_k = 20
-pair_densities = [100, 1000, 10000]
-max_ds = [2, 6, 11, 16]
-n_reps = 1000
-
-
-rule compute_pvalues:
-    input:
-        "simulations/msprime/{prefix}.npz",
-        "simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
-    output:
-        "simulations/pvalues/{prefix}.{model}.json",
+        initial=config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
+        fitted_folded=config.fitted_spectra_file.replace(
+            ".folded={folded}.rec_factor={rec_factor}.rep={rep}.",
+            ".folded=True.rec_factor=1.0.rep=all.",
+        ),
+        fitted_unfolded=config.fitted_spectra_file.replace(
+            ".folded={folded}.rec_factor={rec_factor}.rep={rep}.",
+            ".folded=False.rec_factor=1.0.rep=all.",
+        ),
     run:
-        spectra_comp = load_spectra(input[0])
-        spectra_null = load_spectra(input[1])
-        results = scan_parameters(
-            spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps
-        )
-        with open(output[0], "w") as outfile:
-            json.dump(results, outfile)
-
-
-rule compute_pvalues_recombination:
-    input:
-        "simulations/msprime/fastNeutrino.{prefix}.{model}.rec={r_factor}.npz",
-        "simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
-    output:
-        "simulations/pvalues/{prefix}.{model}.rec={r_factor}.json",
-    run:
-        spectra_comp = load_spectra(input[0])
-        spectra_null = load_spectra(input[1])
-        results = scan_parameters(
-            spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps
-        )
-        with open(output[0], "w") as outfile:
-            json.dump(results, outfile)
+        s_initial = load_spectra(input.initial)
+        s_fitted_folded = load_spectra(input.fitted_folded)
+        s_fitted_unfolded = load_spectra(input.fitted_unfolded)
+        data = []
+        for pd in config.pair_densities:
+            for md in config.max_distances:
+                num_pairs = pd * threefold_degen_sites(s_initial.twosfs.shape[0], md)
+                ks_folded = sample_ks_statistics(
+                    s_initial,
+                    s_fitted_folded,
+                    config.k_max,
+                    True,
+                    config.n_reps,
+                    num_pairs,
+                )
+                ks_unfolded = sample_ks_statistics(
+                    s_initial,
+                    s_fitted_unfolded,
+                    config.k_max,
+                    False,
+                    config.n_reps,
+                    num_pairs,
+                )
+                data.append(
+                    {
+                        "pair_density": pd,
+                        "max_d": md,
+                        "folded": True,
+                        "ks_stats": list(ks_folded),
+                    }
+                )
+                data.append(
+                    {
+                        "pair_density": pd,
+                        "max_d": md,
+                        "folded": False,
+                        "ks_stats": list(ks_unfolded),
+                    }
+                )
+        with gzip.open(output[0], "wt") as outfile:
+            outfile.write(json.dumps(data))
