@@ -86,13 +86,6 @@ def sample_ks_statistics(
     return ks_values * np.sqrt(sum(np_nz))
 
 
-def threefold_degen_sites(size, max_distance):
-    """Return an array with ones at multiples of three up to max_distance."""
-    ret = np.zeros(size, dtype=int)
-    ret[range(3, max_distance + 1, 3)] = 1
-    return ret
-
-
 def _axis_combinations(n_dims: int) -> list[tuple]:
     if n_dims <= 0:
         return [()]
@@ -131,4 +124,8 @@ def scan_parameters(
             ks = sample_ks_statistics(
                 spectra_comp, spectra_null, k_max, folded, n_reps, num_pairs
             )
-            yield {"pair_density": pd, "max_distance": md, "ks_stats": list(ks)}
+            yield {
+                "pair_density": pd,
+                "max_distance": md,
+                "ks_stats": list(ks),
+            }

@@ -13,7 +13,8 @@ class Configuration:
     initial_spectra_file: str = field(init=False)
     fitted_demography_file: str = field(init=False)
     fitted_spectra_file: str = field(init=False)
-    ks_distance_file: str = field(init=False)
+    initial_ks_distance_file: str = field(init=False)
+    fitted_ks_distance_file: str = field(init=False)
     # number of parallel msprime jobs
     nruns: int
     #  2 r * mean_coalescence_time
@@ -55,9 +56,15 @@ class Configuration:
             self.simulation_directory
             + "/tree_files/model={model}.params={params}.rep={rep}.trees"
         )
-        self.ks_distance_file = (
+        self.initial_ks_distance_file = (
             self.simulation_directory
-            + "/ks_distances/model={model}.params={params}.json.gz"
+            + "/initial_ks_distances/model={model}.params={params}"
+            + ".folded={folded}.json.gz"
+        )
+        self.fitted_ks_distance_file = (
+            self.simulation_directory
+            + "/fitted_ks_distances/model={model}.params={params}.folded={folded}"
+            + ".rec_factor={rec_factor}.json.gz"
         )
 
     def iter_models(self) -> Iterator[tuple[str, dict]]:
@@ -92,12 +99,6 @@ class Configuration:
             model=model, params=make_parameter_string(params), rep="all"
         )
 
-    def format_ks_distance_file(self, model: str, params: dict) -> str:
-        """Get a ks distance filename."""
-        return self.ks_distance_file.format(
-            model=model, params=make_parameter_string(params), rep="all"
-        )
-
     def format_fitted_demography_file(
         self, model: str, params: dict, folded: bool
     ) -> str:
@@ -120,6 +121,25 @@ class Configuration:
             rep="all",
         )
 
+    def format_initial_ks_distance_file(
+        self, model: str, params: dict, folded: bool
+    ) -> str:
+        """Get a ks distance filename."""
+        return self.initial_ks_distance_file.format(
+            model=model, params=make_parameter_string(params), folded=folded
+        )
+
+    def format_fitted_ks_distance_file(
+        self, model: str, params: dict, folded: bool, rec_factor: float
+    ) -> str:
+        """Get a fitted ks distance filename."""
+        return self.fitted_ks_distance_file.format(
+            model=model,
+            params=make_parameter_string(params),
+            folded=folded,
+            rec_factor=rec_factor,
+        )
+
     def iter_demos(self) -> Iterator[tuple[str, dict, bool]]:
         """Return an iterator over all model-parameter-demography combinations."""
         for model, params in self.iter_models():
@@ -140,10 +160,6 @@ class Configuration:
         """Iterate all initial tree files from SLiM."""
         return map(lambda x: self.format_tree_file(*x), self.iter_models())
 
-    def ks_distance_files(self) -> Iterator[str]:
-        """Iterate all ks distance files."""
-        return map(lambda x: self.format_ks_distance_file(*x), self.iter_models())
-
     def fitted_demography_files(self) -> Iterator[str]:
         """Iterate all fitted demography files."""
         return map(lambda x: self.format_fitted_demography_file(*x), self.iter_demos())
@@ -151,6 +167,16 @@ class Configuration:
     def fitted_spectra_files(self) -> Iterator[str]:
         """Iterate all fitted spectra files."""
         return map(lambda x: self.format_fitted_spectra_file(*x), self.iter_all())
+
+    def initial_ks_distance_files(self) -> Iterator[str]:
+        """Iterate all ks distance files."""
+        return map(
+            lambda x: self.format_initial_ks_distance_file(*x), self.iter_demos()
+        )
+
+    def fitted_ks_distance_files(self) -> Iterator[str]:
+        """Iterate all ks distance files."""
+        return map(lambda x: self.format_fitted_ks_distance_file(*x), self.iter_all())
 
 
 def configuration_from_json(config_file: Union[str, bytes, PathLike]):
