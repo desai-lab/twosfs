@@ -67,9 +67,10 @@ rule simulate_fitted_spectra:
     input:
         config.fitted_demography_file,
     wildcard_constraints:
+        model=not "sel",
         rep="\d+",
     resources:
-        time=60,
+        time=15,
         mem=1000,
     run:
         with open(input[0], "r") as f:
@@ -95,20 +96,20 @@ rule add_runs:
             allow_missing=True,
         ),
     resources:
-        time=60,
+        time=15,
         mem=1000,
     run:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
 
-
+'''
 rule compute_ks:
     output:
         config.ks_distance_file,
     input:
         config.initial_spectra_file,
         config.fitted_spectra_file,
-
+'''
 
 ### OLD STUFF
 

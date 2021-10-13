@@ -6,12 +6,10 @@ from os import PathLike
 from typing import Any, Iterator, Union, Dict, List
 
 def iterate_tseqs(fname: PathLike, params: dict) -> Iterator:
-
     tseq = pyslim.load(fname).simplify()
     tseq = tseq.simplify(params["samples"])
 
     tree_spacing = (1 - 2 * params["genome_cutoff"]) / params["num_trees"]
-
     for i in range(params["num_trees"]):
         left_bound = round( params["genome_length"] * (params["genome_cutoff"] + tree_spacing * i) )
         right_bound = round( params["genome_length"] * (params["genome_cutoff"] + tree_spacing * i) ) + params["num_bp"]
@@ -23,7 +21,6 @@ def spectra_from_tree_file(fname: PathLike, params: dict) -> Spectra:
                                            recombination_rate = params["recombination_rate"],
                                            tseq = tseq)
                 for tseq in iterate_tseqs(fname, params) )
-
 
 '''
 def spectra_from_tree_file(fname, **params):
