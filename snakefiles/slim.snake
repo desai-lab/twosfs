@@ -17,7 +17,7 @@ rule simulate_tree_file:
         rep="\d+",
     resources:
         mem=5000,
-        time=800
+        time=500
     run:
         params=parse_parameter_string(wildcards.params)
         os.system( "slim -d \"fname='{}'\" -d mut_rate={} -d s={} -d rec_rate={} -d L={} -s {} slim/run_slim_simulation.txt".format(output[0].replace('"','\\\"'), params['mut_rate'], params['s'], params['rec_rate'], int(params['L']), filename2seed(output[0])) )
