@@ -41,7 +41,7 @@ class Configuration:
         """Initialize filename templates."""
         self.initial_spectra_file = (
             self.simulation_directory
-            + "/initial_spectra/model={model}.params={params}.rep={rep}.npz"
+            + "/initial_spectra/model={model}.params={params}.rep={rep}.hdf5"
         )
         self.fitted_demography_file = (
             self.simulation_directory
@@ -50,7 +50,7 @@ class Configuration:
         self.fitted_spectra_file = (
             self.simulation_directory
             + "/fitted_spectra/model={model}.params={params}.folded={folded}"
-            + ".rec_factor={rec_factor}.rep={rep}.npz"
+            + ".rec_factor={rec_factor}.rep={rep}.hdf5"
         )
         self.tree_file = (
             self.simulation_directory

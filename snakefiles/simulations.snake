@@ -94,10 +94,10 @@ rule simulate_fitted_spectra:
 
 rule add_runs:
     output:
-        "{prefix}.rep=all.npz",
+        "{prefix}.rep=all.hdf5",
     input:
         expand(
-            "{prefix}.rep={rep}.npz",
+            "{prefix}.rep={rep}.hdf5",
             rep=range(config.nruns),
             allow_missing=True,
         ),

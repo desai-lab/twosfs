@@ -104,13 +104,13 @@ def filename2seed(filename: str) -> int:
 
     Examples
     --------
-    >>> filename2seed('path/to/my_simulation_output.npz')
+    >>> filename2seed('path/to/my_simulation_output.hdf5')
     2974054299
 
     It is very unlikely to start two simulations with the same seed.
 
-    >>> seed1 = filename2seed('path/to/my_simulation_output.rep1.npz')
-    >>> seed2 = filename2seed('path/to/my_simulation_output.rep2.npz')
+    >>> seed1 = filename2seed('path/to/my_simulation_output.rep1.hdf5')
+    >>> seed2 = filename2seed('path/to/my_simulation_output.rep2.hdf5')
     >>> np.random.seed(seed1)
     >>> print(seed1, np.random.uniform())
     272825019 0.13286198770980562
