@@ -24,7 +24,7 @@ def _dispatch_model(
 ) -> tuple[msprime.AncestryModel, msprime.Demography, float]:
     if model == "const":
         coal_model = msprime.StandardCoalescent()
-        demography = make_pwc_demography([], [])
+        demography = make_pwc_demography([1.0], [])
         t2 = expected_t2_demography(demography)
     elif model == "exp":
         coal_model = msprime.StandardCoalescent()
