@@ -35,7 +35,6 @@ rule simulate_initial_spectra:
     output:
         temp(config.initial_spectra_file),
     wildcard_constraints:
-        model=not "sel",
         rep="\d+",
     run:
         spectra = simulate_spectra(
@@ -94,10 +93,10 @@ rule simulate_fitted_spectra:
 
 rule add_runs:
     output:
-        "{prefix}.rep=all.hdf5",
+        "{prefix}.rep=all.{ext}",
     input:
         expand(
-            "{prefix}.rep={rep}.hdf5",
+            "{prefix}.rep={rep}.{ext}",
             rep=range(config.nruns),
             allow_missing=True,
         ),
