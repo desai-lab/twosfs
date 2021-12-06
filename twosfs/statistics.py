@@ -1,10 +1,95 @@
 """Functions for running statistical tests on twosfs."""
 from functools import partial
-from typing import Iterable, Iterator, Optional, Union
+from typing import Callable, Iterable, Iterator, Optional, Union
 
 import numpy as np
+from scipy.constants import golden
 
+from twosfs.simulations import simulate_spectra
 from twosfs.spectra import Spectra, lump_twosfs
+
+
+def simulate_ks(
+    r: float, spectra: Spectra, k_max: int, folded: bool, **simulation_kwargs
+) -> tuple[float, Spectra]:
+    """Simulate a Spectra and compute its KS distance to the supplied Spectra."""
+    spectra_sim = simulate_spectra(scaled_recombination_rate=r, **simulation_kwargs)
+    twosfs_orig = reweight_and_symmetrize(
+        twosfs_pdf(spectra, k_max, folded)[: len(spectra_sim.num_pairs)],
+        spectra.num_pairs,
+    )
+    twosfs_sim = reweight_and_symmetrize(
+        twosfs_pdf(spectra_sim, k_max, folded),
+        spectra.num_pairs,
+    )
+    return max_ks_distance(twosfs_orig, twosfs_sim), spectra_sim
+
+
+def sample_onesfs(spectra: Spectra, num_sites: int):
+    """Take a random sample of num_sites from the onesfs."""
+    return np.random.binomial(num_sites, spectra.normalized_onesfs())
+
+
+def sample_twosfs(spectra: Spectra, num_pairs: np.ndarray):
+    """Take a random sample of num_pairs from the twosfs."""
+    twosfs_sampled = np.zeros_like(spectra.twosfs)
+    for i, (n, p) in enumerate(zip(num_pairs, spectra.normalized_twosfs())):
+        twosfs_sampled[i] = np.random.binomial(n, p)
+    return twosfs_sampled
+
+
+def sample_spectra(
+    spectra: Spectra,
+    num_sites: Optional[int] = None,
+    num_pairs: Optional[np.ndarray] = None,
+) -> Spectra:
+    """Resample the one- and twosfs from a spectra. Return a new spectra."""
+    if num_sites is None:
+        num_sites_new = spectra.num_sites
+        onesfs_new = spectra.onesfs.copy()
+    else:
+        num_sites_new = num_sites
+        onesfs_new = sample_onesfs(spectra, num_sites)
+    if num_pairs is None:
+        num_pairs_new = spectra.num_pairs.copy()
+        twosfs_new = spectra.twosfs.copy()
+    else:
+        num_pairs_new = num_pairs
+        twosfs_new = sample_twosfs(spectra, num_pairs)
+    return Spectra(
+        num_samples=spectra.num_samples,
+        windows=spectra.windows,
+        recombination_rate=spectra.recombination_rate,
+        num_sites=num_sites_new,
+        num_pairs=num_pairs_new,
+        onesfs=onesfs_new,
+        twosfs=twosfs_new,
+    )
+
+
+def golden_section_search(
+    f: Callable, a: float, b: float, num_iters: int, *args, **kwargs
+):
+    """Minimize a scalar function by golden section search."""
+    lamb = 1 / golden
+    x_l = a + (b - a) * (1 - lamb)
+    f_l = f(x_l, *args, **kwargs)
+    x_u = a + (b - a) * lamb
+    f_u = f(x_u, *args, **kwargs)
+    for i in range(num_iters):
+        if f_l <= f_u:
+            b = x_u
+            x_u = x_l
+            f_u = f_l
+            x_l = a + (b - a) * (1 - lamb)
+            f_l = f(x_l, *args, **kwargs)
+        else:
+            a = x_l
+            x_l = x_u
+            f_l = f_u
+            x_u = a + (b - a) * lamb
+            f_u = f(x_u, *args, **kwargs)
+    return (x_l, x_u), (f_l, f_u)
 
 
 def ks_distance(cdf1: np.ndarray, cdf2: np.ndarray) -> float:
