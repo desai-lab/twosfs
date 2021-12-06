@@ -22,41 +22,40 @@ import numpy as np
 
 from twosfs import config, spectra, statistics
 
+seed = 1000
+max_distance = 25
+num_replicates = 200
+pair_density = 10000
 model = "beta"
 alpha = 1.6
 params = {"alpha": alpha}
 folded = False
+
 configuration = config.configuration_from_json("../simulation_parameters.json")
 root_dir = "../"
-raw_spectra = spectra.load_spectra(
-    root_dir + configuration.format_initial_spectra_file(model, params)
+spectra_file = root_dir + configuration.format_initial_spectra_file(model, params)
+demo_file = root_dir + configuration.format_fitted_demography_file(
+    model=model, params=params, folded=folded
 )
-with open(
-    root_dir
-    + configuration.format_fitted_demography_file(
-        model=model, params=params, folded=folded
-    )
-) as f:
-    model_parameters = json.load(f)
-true_r = configuration.scaled_recombination_rate
-
-max_distance = 25
-pair_density = 10000
-num_pairs = pair_density * statistics.degenerate_pairs(raw_spectra, max_distance)
-spectra_samp = statistics.sample_spectra(raw_spectra, num_pairs=num_pairs)
-
 k_max = configuration.k_max
-msprime_parameters = {
-    "samples": 50,
-    "ploidy": 2,
-    "sequence_length": max_distance,
-    "num_replicates": 200,
-}
+msprime_parameters = configuration.msprime_parameters
+msprime_parameters["sequence_length"] = max_distance
+msprime_parameters["num_replicates"] = num_replicates
+
+raw_spectra = spectra.load_spectra(spectra_file)
+with open(demo_file) as f:
+    model_parameters = json.load(f)
+
+rng = np.random.default_rng(seed)
+
+num_pairs = pair_density * statistics.degenerate_pairs(raw_spectra, max_distance)
+spectra_samp = statistics.sample_spectra(raw_spectra, num_pairs=num_pairs, rng=rng)
+
 sim_kwargs = dict(
     model="pwc",
     model_parameters=model_parameters,
     msprime_parameters=msprime_parameters,
-    random_seed=np.random.default_rng(),
+    random_seed=rng,
 )
 (x_l, x_u), (f_l, f_u) = statistics.golden_section_search(
     statistics.simulate_ks, 0.9, 1.4, 4, spectra_samp, k_max, folded, **sim_kwargs

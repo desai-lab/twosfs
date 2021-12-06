@@ -25,16 +25,26 @@ def simulate_ks(
     return max_ks_distance(twosfs_orig, twosfs_sim), spectra_sim
 
 
-def sample_onesfs(spectra: Spectra, num_sites: int):
+def sample_onesfs(spectra: Spectra, num_sites: int, rng: Optional[np.random.Generator]):
     """Take a random sample of num_sites from the onesfs."""
-    return np.random.binomial(num_sites, spectra.normalized_onesfs())
+    if rng:
+        gen = rng
+    else:
+        gen = np.random.default_rng()
+    return gen.binomial(num_sites, spectra.normalized_onesfs())
 
 
-def sample_twosfs(spectra: Spectra, num_pairs: np.ndarray):
+def sample_twosfs(
+    spectra: Spectra, num_pairs: np.ndarray, rng: Optional[np.random.Generator]
+):
     """Take a random sample of num_pairs from the twosfs."""
+    if rng:
+        gen = rng
+    else:
+        gen = np.random.default_rng()
     twosfs_sampled = np.zeros_like(spectra.twosfs)
     for i, (n, p) in enumerate(zip(num_pairs, spectra.normalized_twosfs())):
-        twosfs_sampled[i] = np.random.binomial(n, p)
+        twosfs_sampled[i] = gen.binomial(n, p)
     return twosfs_sampled
 
 
@@ -42,6 +52,7 @@ def sample_spectra(
     spectra: Spectra,
     num_sites: Optional[int] = None,
     num_pairs: Optional[np.ndarray] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> Spectra:
     """Resample the one- and twosfs from a spectra. Return a new spectra."""
     if num_sites is None:
@@ -49,13 +60,13 @@ def sample_spectra(
         onesfs_new = spectra.onesfs.copy()
     else:
         num_sites_new = num_sites
-        onesfs_new = sample_onesfs(spectra, num_sites)
+        onesfs_new = sample_onesfs(spectra, num_sites, rng)
     if num_pairs is None:
         num_pairs_new = spectra.num_pairs.copy()
         twosfs_new = spectra.twosfs.copy()
     else:
         num_pairs_new = num_pairs
-        twosfs_new = sample_twosfs(spectra, num_pairs)
+        twosfs_new = sample_twosfs(spectra, num_pairs, rng)
     return Spectra(
         num_samples=spectra.num_samples,
         windows=spectra.windows,
