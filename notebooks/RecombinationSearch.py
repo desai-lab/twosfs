@@ -56,7 +56,7 @@ sim_kwargs = dict(
     model="pwc",
     model_parameters=model_parameters,
     msprime_parameters=msprime_parameters,
-    random_seed=np.random.randint(0, 10000),
+    random_seed=np.random.default_rng(),
 )
 (x_l, x_u), (f_l, f_u) = statistics.golden_section_search(
     statistics.simulate_ks, 0.9, 1.4, 4, spectra_samp, k_max, folded, **sim_kwargs
