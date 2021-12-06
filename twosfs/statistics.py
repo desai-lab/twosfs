@@ -2,11 +2,61 @@
 from functools import partial
 from typing import Callable, Iterable, Iterator, Optional, Union
 
+import h5py
 import numpy as np
 from scipy.constants import golden
 
 from twosfs.simulations import simulate_spectra
-from twosfs.spectra import Spectra, lump_twosfs
+from twosfs.spectra import Spectra, lump_twosfs, spectra_to_hdf5
+
+
+def search_recombination_rates(
+    spectra: Spectra,
+    k_max: int,
+    folded: bool,
+    sim_kwargs: dict,
+    r_low: float,
+    r_high: float,
+    num_iters: int,
+) -> tuple[tuple[float, float, Spectra], tuple[float, float, Spectra]]:
+    """Use golden section search to find the r that minimizes ks distance."""
+    (r_l, r_u), ((ks_l, spec_l), (ks_u, spec_u)) = golden_section_search(
+        simulate_ks, r_low, r_high, num_iters, spectra, k_max, folded, **sim_kwargs
+    )
+    return (r_l, ks_l, spec_l), (r_u, ks_u, spec_u)
+
+
+def search_recombination_rates_save(
+    output_file,
+    spectra: Spectra,
+    k_max: int,
+    folded: bool,
+    sim_kwargs: dict,
+    r_low: float,
+    r_high: float,
+    num_iters: int,
+) -> None:
+    """
+    Use golden section search to find the r that minimizes ks distance.
+
+    Save output to a file in hdf5 format.
+    """
+    (r_l, ks_l, spec_l), (r_h, ks_h, spec_h) = search_recombination_rates(
+        spectra, k_max, folded, sim_kwargs, r_low, r_high, num_iters
+    )
+    with h5py.File(output_file, "w") as f:
+        spectra_to_hdf5(
+            spec_l,
+            f,
+            "spectra_low",
+            attrs={"recombination_rate": r_l, "ks_distance": ks_l},
+        )
+        spectra_to_hdf5(
+            spec_h,
+            f,
+            "spectra_high",
+            attrs={"recombination_rate": r_h, "ks_distance": ks_h},
+        )
 
 
 def simulate_ks(

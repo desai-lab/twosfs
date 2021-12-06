@@ -1,7 +1,7 @@
 """Class and functions for manipulating SFS and 2SFS."""
 from collections.abc import Iterable
 from copy import deepcopy
-from typing import Optional
+from typing import Any, Optional
 
 import attr
 import attr.validators as v
@@ -249,11 +249,16 @@ def add_spectra(specs: Iterable[Spectra]):
 
 
 # HDF5
-def spectra_to_hdf5(spec: Spectra, group: h5py.Group, name: str) -> h5py.Group:
+def spectra_to_hdf5(
+    spec: Spectra, group: h5py.Group, name: str, attrs: Optional[dict[str, Any]] = None
+) -> h5py.Group:
     """Save a spectra object as an hdf5 group."""
     spec_group = group.create_group(name)
     for name, value in spec.__dict__.items():
         spec_group.create_dataset(name, data=value)
+    if attrs:
+        for key, val in attrs.items():
+            spec_group.attrs[key] = val
     return spec_group
 
 
