@@ -5,7 +5,7 @@ import gzip
 from twosfs.config import configuration_from_json, parse_parameter_string
 from twosfs.simulations import filename2seed, simulate_spectra
 from twosfs.spectra import add_spectra, load_spectra
-from twosfs.statistics import scan_parameters
+from twosfs.statistics import search_recombination_rates_save
 
 config = configuration_from_json("simulation_parameters.json")
 
@@ -18,17 +18,6 @@ rule simulate_initial_spectra_all:
 rule fit_demographies_all:
     input:
         list(config.fitted_demography_files()),
-
-
-rule simulate_fitted_spectra_all:
-    input:
-        list(config.fitted_spectra_files()),
-
-
-rule compute_ks_distances_all:
-    input:
-        list(config.initial_ks_distance_files()),
-        list(config.fitted_ks_distance_files()),
 
 
 rule simulate_initial_spectra:
@@ -67,30 +56,6 @@ rule fit_demographies:
             f.write(fit.toJson())
 
 
-rule simulate_fitted_spectra:
-    output:
-        temp(config.fitted_spectra_file),
-    input:
-        config.fitted_demography_file,
-    wildcard_constraints:
-        rep="\d+",
-    resources:
-        time=60,
-        mem=1000,
-    run:
-        with open(input[0], "r") as f:
-            model_parameters = json.load(f)
-        r = config.scaled_recombination_rate * float(wildcards.rec_factor)
-        spectra = simulate_spectra(
-            model="pwc",
-            model_parameters=model_parameters,
-            msprime_parameters=config.msprime_parameters,
-            scaled_recombination_rate=r,
-            random_seed=filename2seed(output[0]),
-        )
-        spectra.save(output[0])
-
-
 rule add_runs:
     output:
         "{prefix}.rep=all.{ext}",
@@ -106,49 +71,3 @@ rule add_runs:
     run:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
-
-
-rule compute_initial_ks_distances:
-    output:
-        config.initial_ks_distance_file,
-    input:
-        config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
-        config.fitted_spectra_file.replace(
-            ".rec_factor={rec_factor}.rep={rep}.",
-            ".rec_factor=1.0.rep=all.",
-        ),
-    run:
-        data = scan_parameters(
-            load_spectra(input[0]),
-            load_spectra(input[1]),
-            config.pair_densities,
-            config.max_distances,
-            config.k_max,
-            wildcards.folded,
-            config.n_reps,
-        )
-        with gzip.open(output[0], "wt") as outfile:
-            outfile.write(json.dumps(list(data)))
-
-
-rule compute_fitted_ks_distances:
-    output:
-        config.fitted_ks_distance_file,
-    input:
-        config.fitted_spectra_file.replace(".rep={rep}.", ".rep=all."),
-        config.fitted_spectra_file.replace(
-            ".rec_factor={rec_factor}.rep={rep}.",
-            ".rec_factor=1.0.rep=all.",
-        ),
-    run:
-        data = scan_parameters(
-            load_spectra(input[0]),
-            load_spectra(input[1]),
-            config.pair_densities,
-            config.max_distances,
-            config.k_max,
-            wildcards.folded,
-            config.n_reps,
-        )
-        with gzip.open(output[0], "wt") as outfile:
-            outfile.write(json.dumps(list(data)))
