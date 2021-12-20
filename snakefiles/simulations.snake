@@ -5,7 +5,11 @@ import gzip
 from twosfs.config import configuration_from_json, parse_parameter_string
 from twosfs.simulations import filename2seed, simulate_spectra
 from twosfs.spectra import add_spectra, load_spectra
-from twosfs.statistics import search_recombination_rates_save
+from twosfs.statistics import (
+    search_recombination_rates_save,
+    degenerate_pairs,
+    sample_spectra,
+)
 
 config = configuration_from_json("simulation_parameters.json")
 
@@ -18,6 +22,11 @@ rule simulate_initial_spectra_all:
 rule fit_demographies_all:
     input:
         list(config.fitted_demography_files()),
+
+
+rule search_recombination_all:
+    input:
+        list(config.recombination_search_files()),
 
 
 rule simulate_initial_spectra:
@@ -54,6 +63,45 @@ rule fit_demographies:
         )
         with open(output[0], "w") as f:
             f.write(fit.toJson())
+
+
+rule search_recombination_rate:
+    input:
+        spectra_file=config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
+        demo_file=config.fitted_demography_file,
+    output:
+        config.recombination_search_file,
+    run:
+        rng = np.random.default_rng(filename2seed(output[0]))
+        raw_spectra = load_spectra(input.spectra_file)
+        with open(input.demo_file) as f:
+            model_parameters = json.load(f)
+        num_pairs = int(wildcards.pair_density) * degenerate_pairs(
+            raw_spectra, int(wildcards.sequence_length)
+        )
+        spectra_samp = sample_spectra(raw_spectra, num_pairs=num_pairs, rng=rng)
+        sim_kwargs = dict(
+            model="pwc",
+            model_parameters=model_parameters,
+            msprime_parameters=(
+                config.msprime_parameters
+                | {
+                    "sequence_length": int(wildcards.sequence_length),
+                    "num_replicates": config.search_num_replicates,
+                }
+            ),
+            random_seed=rng,
+        )
+        search_recombination_rates_save(
+            output[0],
+            spectra_samp,
+            config.k_max,
+            wildcards.folded == "True",
+            sim_kwargs,
+            config.search_r_low,
+            config.search_r_high,
+            config.search_iters,
+        )
 
 
 rule add_runs:

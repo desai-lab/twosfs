@@ -46,6 +46,11 @@ def search_recombination_rates_save(
     )
     with h5py.File(output_file, "w") as f:
         spectra_to_hdf5(
+            spectra,
+            f,
+            "spectra_target",
+        )
+        spectra_to_hdf5(
             spec_l,
             f,
             "spectra_low",

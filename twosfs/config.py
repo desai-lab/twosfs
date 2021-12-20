@@ -12,9 +12,6 @@ class Configuration:
     simulation_directory: str
     initial_spectra_file: str = field(init=False)
     fitted_demography_file: str = field(init=False)
-    fitted_spectra_file: str = field(init=False)
-    initial_ks_distance_file: str = field(init=False)
-    fitted_ks_distance_file: str = field(init=False)
     # number of parallel msprime jobs
     nruns: int
     #  2 r * mean_coalescence_time
@@ -24,7 +21,6 @@ class Configuration:
     alphas: List[float]
     growth_rates: List[float]
     end_times: List[float]
-    rec_factors: List[float]
     positive_sel_coeffs: List[float]
     positive_mut_rates: List[float]
 
@@ -32,10 +28,18 @@ class Configuration:
     k_max: int
     num_epochs: int
     penalty_coef: float
+
     # Parameters for power calculations
-    pair_densities: list[int]
-    max_distances: list[int]
-    n_reps: int
+    power_pair_densities: list[int]
+    power_sequence_lengths: list[int]
+    power_num_samples: int
+    power_reps: int
+
+    # Recombination search parameters
+    search_r_low: float
+    search_r_high: float
+    search_iters: int
+    search_num_replicates: int
 
     def __post_init__(self):
         """Initialize filename templates."""
@@ -47,24 +51,16 @@ class Configuration:
             self.simulation_directory
             + "/fitted_demographies/model={model}.params={params}.folded={folded}.txt"
         )
-        self.fitted_spectra_file = (
+        self.recombination_search_file = (
             self.simulation_directory
-            + "/fitted_spectra/model={model}.params={params}.folded={folded}"
-            + ".rec_factor={rec_factor}.rep={rep}.hdf5"
+            + "/recombination_search/model={model}.params={params}.folded={folded}."
+            + "pair_density={pair_density}."
+            + "sequence_length={sequence_length}."
+            + "rep={rep}.hdf5"
         )
         self.tree_file = (
             self.simulation_directory
             + "/tree_files/model={model}.params={params}.rep={rep}.trees"
-        )
-        self.initial_ks_distance_file = (
-            self.simulation_directory
-            + "/initial_ks_distances/model={model}.params={params}"
-            + ".folded={folded}.json.gz"
-        )
-        self.fitted_ks_distance_file = (
-            self.simulation_directory
-            + "/fitted_ks_distances/model={model}.params={params}.folded={folded}"
-            + ".rec_factor={rec_factor}.json.gz"
         )
 
     def iter_models(self) -> Iterator[tuple[str, dict]]:
@@ -109,35 +105,23 @@ class Configuration:
             folded=folded,
         )
 
-    def format_fitted_spectra_file(
-        self, model: str, params: dict, folded: bool, rec_factor: float
+    def format_recombination_search_file(
+        self,
+        model: str,
+        params: dict,
+        folded: bool,
+        pair_density: int,
+        sequence_length: int,
+        rep: int,
     ) -> str:
-        """Get a fitted spectra filename."""
-        return self.fitted_spectra_file.format(
+        """Get a recombination search filename."""
+        return self.recombination_search_file.format(
             model=model,
             params=make_parameter_string(params),
             folded=folded,
-            rec_factor=rec_factor,
-            rep="all",
-        )
-
-    def format_initial_ks_distance_file(
-        self, model: str, params: dict, folded: bool
-    ) -> str:
-        """Get a ks distance filename."""
-        return self.initial_ks_distance_file.format(
-            model=model, params=make_parameter_string(params), folded=folded
-        )
-
-    def format_fitted_ks_distance_file(
-        self, model: str, params: dict, folded: bool, rec_factor: float
-    ) -> str:
-        """Get a fitted ks distance filename."""
-        return self.fitted_ks_distance_file.format(
-            model=model,
-            params=make_parameter_string(params),
-            folded=folded,
-            rec_factor=rec_factor,
+            pair_density=pair_density,
+            sequence_length=sequence_length,
+            rep=rep,
         )
 
     def iter_demos(self) -> Iterator[tuple[str, dict, bool]]:
@@ -146,11 +130,13 @@ class Configuration:
             for folded in [True, False]:
                 yield model, params, folded
 
-    def iter_all(self) -> Iterator[tuple[str, dict, bool, float]]:
-        """Return an iterator over all model-parameter-demography-rec combinations."""
+    def iter_rec_search(self) -> Iterator[tuple[str, dict, bool, int, int, int]]:
+        """Return an iterator over all recombination search param combinations."""
         for model, params, folded in self.iter_demos():
-            for rec_factor in self.rec_factors:
-                yield model, params, folded, rec_factor
+            for density in self.power_pair_densities:
+                for length in self.power_sequence_lengths:
+                    for rep in range(self.power_reps):
+                        yield model, params, folded, density, length, rep
 
     def initial_spectra_files(self) -> Iterator[str]:
         """Iterate all initial spectra files."""
@@ -164,19 +150,11 @@ class Configuration:
         """Iterate all fitted demography files."""
         return map(lambda x: self.format_fitted_demography_file(*x), self.iter_demos())
 
-    def fitted_spectra_files(self) -> Iterator[str]:
-        """Iterate all fitted spectra files."""
-        return map(lambda x: self.format_fitted_spectra_file(*x), self.iter_all())
-
-    def initial_ks_distance_files(self) -> Iterator[str]:
-        """Iterate all ks distance files."""
+    def recombination_search_files(self) -> Iterator[str]:
+        """Iterate all recombination search files."""
         return map(
-            lambda x: self.format_initial_ks_distance_file(*x), self.iter_demos()
+            lambda x: self.format_recombination_search_file(*x), self.iter_rec_search()
         )
-
-    def fitted_ks_distance_files(self) -> Iterator[str]:
-        """Iterate all ks distance files."""
-        return map(lambda x: self.format_fitted_ks_distance_file(*x), self.iter_all())
 
 
 def configuration_from_json(config_file: Union[str, bytes, PathLike]):
