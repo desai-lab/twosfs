@@ -71,6 +71,8 @@ rule search_recombination_rate:
         demo_file=config.fitted_demography_file,
     output:
         config.recombination_search_file,
+    resources:
+        time="24:00:00",
     run:
         rng = np.random.default_rng(filename2seed(output[0]))
         raw_spectra = load_spectra(input.spectra_file)
