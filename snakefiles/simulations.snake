@@ -9,6 +9,7 @@ from twosfs.statistics import scan_parameters
 
 config = configuration_from_json("simulation_parameters.json")
 
+
 rule simulate_initial_spectra_all:
     input:
         list(config.initial_spectra_files()),
@@ -22,6 +23,12 @@ rule fit_demographies_all:
 rule simulate_fitted_spectra_all:
     input:
         list(config.fitted_spectra_files()),
+
+
+rule compute_ks_distances_all:
+    input:
+        list(config.initial_ks_distance_files()),
+        list(config.fitted_ks_distance_files()),
 
 
 rule simulate_initial_spectra:
@@ -96,56 +103,60 @@ rule add_runs:
             allow_missing=True,
         ),
     resources:
-        time=15,
+        time=10,
         mem=1000,
     run:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
 
-'''
-rule compute_ks:
+
+rule compute_initial_ks_distances:
     output:
-        config.ks_distance_file,
+        config.initial_ks_distance_file,
     input:
-        config.initial_spectra_file,
-        config.fitted_spectra_file,
-'''
-
-### OLD STUFF
-
-max_k = 20
-pair_densities = [100, 1000, 10000]
-max_ds = [2, 6, 11, 16]
-n_reps = 1000
-
-
-rule compute_pvalues:
-    input:
-        "simulations/msprime/{prefix}.npz",
-        "simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
-    output:
-        "simulations/pvalues/{prefix}.{model}.json",
+        config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
+        config.fitted_spectra_file.replace(
+            ".rec_factor={rec_factor}.rep={rep}.",
+            ".rec_factor=1.0.rep=all.",
+        ),
+    resources:
+        time=10,
+        mem=1000,
     run:
-        spectra_comp = load_spectra(input[0])
-        spectra_null = load_spectra(input[1])
-        results = scan_parameters(
-            spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps
+        data = scan_parameters(
+            load_spectra(input[0]),
+            load_spectra(input[1]),
+            config.pair_densities,
+            config.max_distances,
+            config.k_max,
+            wildcards.folded,
+            config.n_reps,
         )
-        with open(output[0], "w") as outfile:
-            json.dump(results, outfile)
+        with gzip.open(output[0], "wt") as outfile:
+            outfile.write(json.dumps(list(data)))
 
 
-rule compute_pvalues_recombination:
-    input:
-        "simulations/msprime/fastNeutrino.{prefix}.{model}.rec={r_factor}.npz",
-        "simulations/msprime/fastNeutrino.{prefix}.{model}.npz",
+rule compute_fitted_ks_distances:
     output:
-        "simulations/pvalues/{prefix}.{model}.rec={r_factor}.json",
+        config.fitted_ks_distance_file,
+    input:
+        config.fitted_spectra_file.replace(".rep={rep}.", ".rep=all."),
+        config.fitted_spectra_file.replace(
+            ".rec_factor={rec_factor}.rep={rep}.",
+            ".rec_factor=1.0.rep=all.",
+        ),
+    resources:
+        time=10,
+        mem=1000,
     run:
-        spectra_comp = load_spectra(input[0])
-        spectra_null = load_spectra(input[1])
-        results = scan_parameters(
-            spectra_comp, spectra_null, pair_densities, max_ds, max_k, n_reps
+        data = scan_parameters(
+            load_spectra(input[0]),
+            load_spectra(input[1]),
+            config.pair_densities,
+            config.max_distances,
+            config.k_max,
+            wildcards.folded,
+            config.n_reps,
         )
-        with open(output[0], "w") as outfile:
-            json.dump(results, outfile)
+        with gzip.open(output[0], "wt") as outfile:
+            outfile.write(json.dumps(list(data)))

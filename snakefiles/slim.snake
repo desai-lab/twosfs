@@ -10,17 +10,27 @@ from twosfs.simulations import filename2seed
 
 config = configuration_from_json("simulation_parameters.json")
 
+rule compute_ks_distances_forward:
+    input:
+        list(config.initial_forward_ks_distance_files()),
+        list(config.fitted_forward_ks_distance_files()),
+    resources:
+        mem=100,
+        time=5
+
 rule simulate_tree_file:
     output:
         config.tree_file
     wildcard_constraints:
         rep="\d+",
     resources:
-        mem=5000,
-        time=500
+        mem=2000,
+        time=600
     run:
         params=parse_parameter_string(wildcards.params)
-        os.system( "slim -d \"fname='{}'\" -d mut_rate={} -d s={} -d rec_rate={} -d L={} -s {} slim/run_slim_simulation.txt".format(output[0].replace('"','\\\"'), params['mut_rate'], params['s'], params['rec_rate'], int(params['L']), filename2seed(output[0])) )
+        params["genome_length"] = config.slim_parameters["genome_length"]
+        params["pop_size"] = config.slim_parameters["pop_size"]
+        os.system( "slim -d \"fname='{}'\" -d mut_rate={} -d s={} -d rec_rate={} -d L={} -d N={} -s {} slim/run_slim_simulation.txt".format(output[0].replace('"','\\\"'), params["mut_rate"], params["s"], params["rec_rate"], int(params["genome_length"]), int(params["pop_size"]), filename2seed(output[0])) )
 
 rule spectra_from_SLiM:
     input:
@@ -35,10 +45,11 @@ rule spectra_from_SLiM:
         time=10
     run:
         random.seed(filename2seed(output[0]))
-        params = config.slim_parameters
-        samples = random.sample(range(int(2e4)), k=config.slim_parameters["num_samples"])
-        params["samples"] = samples
-        spectra = spectra_from_tree_file(input[0], params)
+        spectra_params = config.slim_parameters
+        spectra_params["recombination_rate"] = parse_parameter_string(wildcards.params)["rec_rate"]
+        samples = random.sample( range(2*int(config.slim_parameters["pop_size"])), k=config.slim_parameters["num_samples"])
+        spectra_params["samples"] = samples
+        spectra = spectra_from_tree_file(input[0], spectra_params)
         spectra.save(output[0])
 
 ruleorder: add_runs_from_SLiM > add_runs 
@@ -75,7 +86,7 @@ rule simulate_fitted_spectra_from_SLiM:
         empirical_t2 = load_spectra(input[1]).tajimas_pi()
         with open(input[0], "r") as f:
             model_parameters = json.load(f)
-        r = config.slim_parameters["recombination_rate"] * empirical_t2 * float(wildcards.rec_factor)
+        r = parse_parameter_string(wildcards.params)["rec_rate"] * empirical_t2 * float(wildcards.rec_factor)
         spectra = simulate_spectra(
             model="pwc",
             model_parameters=model_parameters,
