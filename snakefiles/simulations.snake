@@ -5,7 +5,11 @@ import gzip
 from twosfs.config import configuration_from_json, parse_parameter_string
 from twosfs.simulations import filename2seed, simulate_spectra
 from twosfs.spectra import add_spectra, load_spectra
-from twosfs.statistics import scan_parameters
+from twosfs.statistics import (
+    search_recombination_rates_save,
+    degenerate_pairs,
+    sample_spectra,
+)
 
 config = configuration_from_json("simulation_parameters.json")
 
@@ -20,9 +24,9 @@ rule fit_demographies_all:
         list(config.fitted_demography_files()),
 
 
-rule simulate_fitted_spectra_all:
+rule search_recombination_all:
     input:
-        list(config.fitted_spectra_files()),
+        list(config.recombination_search_files()),
 
 
 rule compute_ks_distances_all:
@@ -35,7 +39,6 @@ rule simulate_initial_spectra:
     output:
         temp(config.initial_spectra_file),
     wildcard_constraints:
-        model=not "sel",
         rep="\d+",
     run:
         spectra = simulate_spectra(
@@ -68,37 +71,54 @@ rule fit_demographies:
             f.write(fit.toJson())
 
 
-rule simulate_fitted_spectra:
-    output:
-        temp(config.fitted_spectra_file),
+rule search_recombination_rate:
     input:
-        config.fitted_demography_file,
-    wildcard_constraints:
-        model=not "sel",
-        rep="\d+",
+        spectra_file=config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
+        demo_file=config.fitted_demography_file,
+    output:
+        config.recombination_search_file,
     resources:
         time=15,
         mem=1000,
     run:
-        with open(input[0], "r") as f:
+        rng = np.random.default_rng(filename2seed(output[0]))
+        raw_spectra = load_spectra(input.spectra_file)
+        with open(input.demo_file) as f:
             model_parameters = json.load(f)
-        r = config.scaled_recombination_rate * float(wildcards.rec_factor)
-        spectra = simulate_spectra(
+        num_pairs = int(wildcards.pair_density) * degenerate_pairs(
+            raw_spectra, int(wildcards.sequence_length)
+        )
+        spectra_samp = sample_spectra(raw_spectra, num_pairs=num_pairs, rng=rng)
+        sim_kwargs = dict(
             model="pwc",
             model_parameters=model_parameters,
-            msprime_parameters=config.msprime_parameters,
-            scaled_recombination_rate=r,
-            random_seed=filename2seed(output[0]),
+            msprime_parameters=(
+                config.msprime_parameters
+                | {
+                    "sequence_length": int(wildcards.sequence_length),
+                    "num_replicates": config.search_num_replicates,
+                }
+            ),
+            random_seed=rng,
         )
-        spectra.save(output[0])
+        search_recombination_rates_save(
+            output[0],
+            spectra_samp,
+            config.k_max,
+            wildcards.folded == "True",
+            sim_kwargs,
+            config.search_r_low,
+            config.search_r_high,
+            config.search_iters,
+        )
 
 
 rule add_runs:
     output:
-        "{prefix}.rep=all.npz",
+        "{prefix}.rep=all.{ext}",
     input:
         expand(
-            "{prefix}.rep={rep}.npz",
+            "{prefix}.rep={rep}.{ext}",
             rep=range(config.nruns),
             allow_missing=True,
         ),
@@ -108,7 +128,6 @@ rule add_runs:
     run:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
-
 
 rule compute_initial_ks_distances:
     output:
@@ -160,3 +179,4 @@ rule compute_fitted_ks_distances:
         )
         with gzip.open(output[0], "wt") as outfile:
             outfile.write(json.dumps(list(data)))
+

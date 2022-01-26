@@ -1,6 +1,6 @@
 """Helper functions for running msprime simulations."""
 from hashlib import blake2b
-from typing import Iterable
+from typing import Iterable, Union
 
 import msprime
 import numpy as np
@@ -24,7 +24,7 @@ def _dispatch_model(
 ) -> tuple[msprime.AncestryModel, msprime.Demography, float]:
     if model == "const":
         coal_model = msprime.StandardCoalescent()
-        demography = make_pwc_demography([], [])
+        demography = make_pwc_demography([1.0], [])
         t2 = expected_t2_demography(demography)
     elif model == "exp":
         coal_model = msprime.StandardCoalescent()
@@ -54,16 +54,22 @@ def simulate_spectra(
     model_parameters: dict,
     msprime_parameters: dict,
     scaled_recombination_rate: float,
-    random_seed: int,
+    random_seed: Union[int, np.random.Generator],
 ) -> Spectra:
     """Simulate spectra using msprime coalescent simulations."""
+    if isinstance(random_seed, int):
+        seed = random_seed
+    elif isinstance(random_seed, np.random.Generator):
+        seed = random_seed.integers(2 ** 32)
+    else:
+        raise ValueError("random_seed must be an int or a numpy.random.Generator")
     coal_model, demography, t2 = _dispatch_model(model, model_parameters)
     r = scaled_recombination_rate / (2 * t2)
     sims = msprime.sim_ancestry(
         model=coal_model,
         demography=demography,
         recombination_rate=r,
-        random_seed=random_seed,
+        random_seed=seed,
         **msprime_parameters,
     )
     windows = np.arange(msprime_parameters["sequence_length"] + 1)
@@ -104,13 +110,13 @@ def filename2seed(filename: str) -> int:
 
     Examples
     --------
-    >>> filename2seed('path/to/my_simulation_output.npz')
+    >>> filename2seed('path/to/my_simulation_output.hdf5')
     2974054299
 
     It is very unlikely to start two simulations with the same seed.
 
-    >>> seed1 = filename2seed('path/to/my_simulation_output.rep1.npz')
-    >>> seed2 = filename2seed('path/to/my_simulation_output.rep2.npz')
+    >>> seed1 = filename2seed('path/to/my_simulation_output.rep1.hdf5')
+    >>> seed2 = filename2seed('path/to/my_simulation_output.rep2.hdf5')
     >>> np.random.seed(seed1)
     >>> print(seed1, np.random.uniform())
     272825019 0.13286198770980562

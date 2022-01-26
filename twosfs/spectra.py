@@ -1,10 +1,11 @@
 """Class and functions for manipulating SFS and 2SFS."""
 from collections.abc import Iterable
 from copy import deepcopy
-from typing import Optional
+from typing import Any, Optional
 
 import attr
 import attr.validators as v
+import h5py
 import numpy as np
 import tskit
 from fitsfs.fitsfs import FittedPWCModel, fit_sfs
@@ -190,7 +191,10 @@ class Spectra(object):
         """Return the 2SFS normalized to one in each window."""
         if not k_max:
             k_max = self.num_samples
-        normed = self.twosfs / np.sum(self.twosfs, axis=(1, 2))[:, None, None]
+        sums = np.sum(self.twosfs, axis=(1, 2))
+        nonzero = sums > 0
+        normed = np.zeros_like(self.twosfs)
+        normed[nonzero] = self.twosfs[nonzero] / sums[nonzero, None, None]
         if folded:
             return lump_twosfs(foldtwosfs(normed), k_max=k_max)
         else:
@@ -209,15 +213,25 @@ class Spectra(object):
         sfs = self.normalized_onesfs()[1:-1]
         return fit_sfs(sfs, **kwargs)
 
-    def save(self, output_file) -> None:
-        """Save Spectra to a .npz file.
+    def save(self, output_file, format: str = "hdf5", name: str = "spectra") -> None:
+        """Save Spectra to a file.
 
         Parameters
         ----------
         output_file :
             May be a filename string or a file handle.
+        format : str
+            May be "hdf5" (default) or "npz")
+        name : str
+            If format is "hdf5", the name of the group (default=spectra)
         """
-        np.savez_compressed(output_file, **self.__dict__)
+        if format == "hdf5":
+            with h5py.File(output_file, "w") as f:
+                spectra_to_hdf5(self, f, _name)
+        elif format == "npz":
+            np.savez_compressed(output_file, **self.__dict__)
+        else:
+            raise ValueError("format must be hdf5 or npz.")
 
 
 def add_spectra(specs: Iterable[Spectra]):
@@ -234,15 +248,60 @@ def add_spectra(specs: Iterable[Spectra]):
     return ret
 
 
+# HDF5
+def spectra_to_hdf5(
+    spec: Spectra, group: h5py.Group, name: str, attrs: Optional[dict[str, Any]] = None
+) -> h5py.Group:
+    """Save a spectra object as an hdf5 group."""
+    spec_group = group.create_group(name)
+    for name, value in spec.__dict__.items():
+        spec_group.create_dataset(name, data=value)
+    if attrs:
+        for key, val in attrs.items():
+            spec_group.attrs[key] = val
+    return spec_group
+
+
+def spectra_from_hdf5(group: h5py.Group) -> Spectra:
+    """Load a spectra object from an hdf5 group."""
+    return Spectra(
+        num_samples=int(group["num_samples"][()]),
+        windows=group["windows"][()],
+        recombination_rate=group["recombination_rate"][()],
+        num_sites=group["num_sites"][()],
+        num_pairs=group["num_pairs"][()],
+        onesfs=group["onesfs"][()],
+        twosfs=group["twosfs"][()],
+    )
+
+
 # Spectra constructors
 
+_name = "spectra"
 
-def load_spectra(input_file):
+
+def load_spectra(input_file, format: str = "hdf5") -> Spectra:
+    """Read a Spectra object from file. Format may be hdf5 or npz."""
+    if format == "hdf5":
+        return _load_hdf5(input_file)
+    elif format == "npz":
+        return _load_npz(input_file)
+    else:
+        raise ValueError("format must be hdf5 or npz.")
+
+
+def _load_npz(input_file) -> Spectra:
     """Read a Spectra object from a .npz file created by Spectra.save()."""
     with np.load(input_file) as data:
         kws = dict(data)
     kws["num_samples"] = int(kws["num_samples"])
     return Spectra(**kws)
+
+
+def _load_hdf5(input_file) -> Spectra:
+    """Read a Spectra object from a .hdf5 file created by Spectra.save()."""
+    with h5py.File(input_file, "r") as f:
+        return spectra_from_hdf5(f[_name])
 
 
 def zero_spectra(num_samples: int, windows, recombination_rate: float) -> Spectra:

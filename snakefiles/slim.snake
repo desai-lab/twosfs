@@ -20,7 +20,7 @@ rule compute_ks_distances_forward:
 
 rule simulate_tree_file:
     output:
-        config.tree_file
+        config.tree_file,
     wildcard_constraints:
         rep="\d+",
     resources:
@@ -32,27 +32,33 @@ rule simulate_tree_file:
         params["pop_size"] = config.slim_parameters["pop_size"]
         os.system( "slim -d \"fname='{}'\" -d mut_rate={} -d s={} -d rec_rate={} -d L={} -d N={} -s {} slim/run_slim_simulation.txt".format(output[0].replace('"','\\\"'), params["mut_rate"], params["s"], params["rec_rate"], int(params["genome_length"]), int(params["pop_size"]), filename2seed(output[0])) )
 
+ruleorder: spectra_from_SLiM > simulate_initial_spectra
+
 rule spectra_from_SLiM:
     input:
-        config.tree_file
+        config.tree_file,
     output:
-        temp(config.initial_spectra_file)
+        temp(config.initial_spectra_file),
     wildcard_constraints:
         model="sel",
         rep="\d+",
     resources:
         mem=3000,
-        time=10
+        time=10,
     run:
         random.seed(filename2seed(output[0]))
         spectra_params = config.slim_parameters
         spectra_params["recombination_rate"] = parse_parameter_string(wildcards.params)["rec_rate"]
-        samples = random.sample( range(2*int(config.slim_parameters["pop_size"])), k=config.slim_parameters["num_samples"])
+        samples = random.sample( 
+            range(2*int(config.slim_parameters["pop_size"])), 
+            k=config.slim_parameters["num_samples"]
+        )
         spectra_params["samples"] = samples
         spectra = spectra_from_tree_file(input[0], spectra_params)
         spectra.save(output[0])
 
-ruleorder: add_runs_from_SLiM > add_runs 
+
+ruleorder: add_runs_from_SLiM > add_runs
 
 rule add_runs_from_SLiM:
     output:
