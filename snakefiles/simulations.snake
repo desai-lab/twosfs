@@ -29,12 +29,6 @@ rule search_recombination_all:
         list(config.recombination_search_files()),
 
 
-rule compute_ks_distances_all:
-    input:
-        list(config.initial_ks_distance_files()),
-        list(config.fitted_ks_distance_files()),
-
-
 rule simulate_initial_spectra:
     output:
         temp(config.initial_spectra_file),
@@ -128,55 +122,4 @@ rule add_runs:
     run:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
-
-rule compute_initial_ks_distances:
-    output:
-        config.initial_ks_distance_file,
-    input:
-        config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
-        config.fitted_spectra_file.replace(
-            ".rec_factor={rec_factor}.rep={rep}.",
-            ".rec_factor=1.0.rep=all.",
-        ),
-    resources:
-        time=10,
-        mem=1000,
-    run:
-        data = scan_parameters(
-            load_spectra(input[0]),
-            load_spectra(input[1]),
-            config.pair_densities,
-            config.max_distances,
-            config.k_max,
-            wildcards.folded,
-            config.n_reps,
-        )
-        with gzip.open(output[0], "wt") as outfile:
-            outfile.write(json.dumps(list(data)))
-
-
-rule compute_fitted_ks_distances:
-    output:
-        config.fitted_ks_distance_file,
-    input:
-        config.fitted_spectra_file.replace(".rep={rep}.", ".rep=all."),
-        config.fitted_spectra_file.replace(
-            ".rec_factor={rec_factor}.rep={rep}.",
-            ".rec_factor=1.0.rep=all.",
-        ),
-    resources:
-        time=10,
-        mem=1000,
-    run:
-        data = scan_parameters(
-            load_spectra(input[0]),
-            load_spectra(input[1]),
-            config.pair_densities,
-            config.max_distances,
-            config.k_max,
-            wildcards.folded,
-            config.n_reps,
-        )
-        with gzip.open(output[0], "wt") as outfile:
-            outfile.write(json.dumps(list(data)))
 

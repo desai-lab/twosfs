@@ -29,9 +29,6 @@
   "positive_sel_coeffs": [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.2],
   "positive_mut_rates": [1e-09, 1e-10],
   "rec_rates": [1e-05],
-  "pair_densities": [1000, 5000, 10000, 20000],
-  "max_distances": [4, 7, 10, 13, 16, 19, 22],
-  "n_reps": 1000
   "power_pair_densities": [10000],
   "power_sequence_lengths": [25],
   "power_num_samples": 1000,
