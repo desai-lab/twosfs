@@ -11,6 +11,8 @@ from twosfs.statistics import (
     sample_spectra,
 )
 
+import time
+
 config = configuration_from_json("simulation_parameters.json")
 
 
@@ -72,8 +74,8 @@ rule search_recombination_rate:
     output:
         config.recombination_search_file,
     resources:
-        time=15,
-        mem=1000,
+        time=500,
+        mem=5000,
     run:
         rng = np.random.default_rng(filename2seed(output[0]))
         raw_spectra = load_spectra(input.spectra_file)

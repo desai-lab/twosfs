@@ -282,6 +282,7 @@ _name = "spectra"
 
 def load_spectra(input_file, format: str = "hdf5") -> Spectra:
     """Read a Spectra object from file. Format may be hdf5 or npz."""
+    print(input_file)
     if format == "hdf5":
         return _load_hdf5(input_file)
     elif format == "npz":

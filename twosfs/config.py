@@ -23,7 +23,6 @@ class Configuration:
     end_times: List[float]
     positive_sel_coeffs: List[float]
     positive_mut_rates: List[float]
-    rec_rates: List[float]
 
     # Fitting parameters
     k_max: int
@@ -57,21 +56,17 @@ class Configuration:
             + "/recombination_search/model={model}.params={params}.folded={folded}."
             + "pair_density={pair_density}."
             + "sequence_length={sequence_length}."
-            + "rep={rep}.hdf5"
+            + "power_rep={power_rep}.hdf5"
+        )
+        self.fitted_spectra_file = (
+            self.simulation_directory
+            + "/fitted_spectra/model={model}.params={params}.folded={folded}."
+            + "pair_density={pair_density}.sequence_length={sequence_length}."
+            + "power_rep={power_rep}.rep={rep}.hdf5"
         )
         self.tree_file = (
             self.simulation_directory
             + "/tree_files/model={model}.params={params}/model={model}.params={params}.rep={rep}.trees"
-        )
-        self.initial_ks_distance_file = (
-            self.simulation_directory
-            + "/initial_ks_distances/model={model}.params={params}"
-            + ".folded={folded}.json.gz"
-        )
-        self.fitted_ks_distance_file = (
-            self.simulation_directory
-            + "/fitted_ks_distances/model={model}.params={params}.folded={folded}"
-            + ".rec_factor={rec_factor}.json.gz"
         )
 
     def iter_models(self) -> Iterator[tuple[str, dict]]:
@@ -87,7 +82,7 @@ class Configuration:
         """Return an iterator over all forward-time parameter combinations."""
         for s in self.positive_sel_coeffs:
             for mu in self.positive_mut_rates:
-                for r in self.rec_rates:
+                for r in self.slim_parameters["rec_rates"]:
                     yield "sel", dict(s=s, rec_rate=r, mut_rate=mu)
         yield "sel", dict(s=0, rec_rate=1e-05, mut_rate = 1e-09)
 
@@ -120,7 +115,7 @@ class Configuration:
         folded: bool,
         pair_density: int,
         sequence_length: int,
-        rep: int,
+        power_rep: int,
     ) -> str:
         """Get a recombination search filename."""
         return self.recombination_search_file.format(
@@ -129,26 +124,7 @@ class Configuration:
             folded=folded,
             pair_density=pair_density,
             sequence_length=sequence_length,
-            rep=rep,
-        )
-
-    def format_initial_ks_distance_file(
-        self, model: str, params: dict, folded: bool
-    ) -> str:
-        """Get a ks distance filename."""
-        return self.initial_ks_distance_file.format(
-            model=model, params=make_parameter_string(params), folded=folded
-        )
-
-    def format_fitted_ks_distance_file(
-        self, model: str, params: dict, folded: bool, rec_factor: float
-    ) -> str:
-        """Get a fitted ks distance filename."""
-        return self.fitted_ks_distance_file.format(
-            model=model,
-            params=make_parameter_string(params),
-            folded=folded,
-            rec_factor=rec_factor,
+            power_rep=power_rep,
         )
 
     def iter_demos(self) -> Iterator[tuple[str, dict, bool]]:
@@ -157,25 +133,27 @@ class Configuration:
             for folded in [True, False]:
                 yield model, params, folded
 
-    def iter_rec_search(self) -> Iterator[tuple[str, dict, bool, int, int, int]]:
-        """Return an iterator over all recombination search param combinations."""
-        for model, params, folded in self.iter_demos():
-            for density in self.power_pair_densities:
-                for length in self.power_sequence_lengths:
-                    for rep in range(self.power_reps):
-                        yield model, params, folded, density, length, rep
-
     def iter_forward_demos(self) -> Iterator[tuple[str, dict, bool]]:
         """Return an iterator over all forward-time model-parameter-demography combinations."""
         for model, params in self.iter_forward_models():
             for folded in [True, False]:
                 yield model, params, folded
 
-    def iter_forward_all(self) -> Iterator[tuple[str, dict, bool, float]]:
-        """Return an iterator over all forward-time model-parameter-demography-rec combinations."""
+    def iter_rec_search(self) -> Iterator[tuple[str, dict, bool, int, int, int]]:
+        """Return an iterator over all recombination search param combinations."""
+        for model, params, folded in self.iter_demos():
+            for density in self.power_pair_densities:
+                for length in self.power_sequence_lengths:
+                    for power_rep in range(self.power_reps):
+                        yield model, params, folded, density, length, power_rep
+
+    def iter_forward_rec_search(self) -> Iterator[tuple[str, dict, bool, int, int, int]]:
+        """Return an iterator over all forward-time recombination search param combinations."""
         for model, params, folded in self.iter_forward_demos():
-            for rec_factor in [1.0]:
-                yield model, params, folded, rec_factor
+            for density in self.power_pair_densities:
+                for length in self.power_sequence_lengths:
+                    for power_rep in range(self.power_reps):
+                        yield model, params, folded, density, length, power_rep
 
     def initial_spectra_files(self) -> Iterator[str]:
         """Iterate all initial spectra files."""
@@ -191,16 +169,6 @@ class Configuration:
             lambda x: self.format_recombination_search_file(*x), self.iter_rec_search()
         )
 
-    def initial_ks_distance_files(self) -> Iterator[str]:
-        """Iterate all ks distance files."""
-        return map(
-            lambda x: self.format_initial_ks_distance_file(*x), self.iter_demos()
-        )
-
-    def fitted_ks_distance_files(self) -> Iterator[str]:
-        """Iterate all ks distance files."""
-        return map(lambda x: self.format_fitted_ks_distance_file(*x), self.iter_all())
-
     def initial_forward_spectra_files(self) -> Iterator[str]:
         """Iterate all forward-time initial spectra files."""
         return map(lambda x: self.format_initial_spectra_file(*x), self.iter_forward_models())
@@ -210,18 +178,14 @@ class Configuration:
         return map(lambda x: self.format_fitted_demography_file(*x), self.iter_forward_demos())
 
     def fitted_forward_spectra_files(self) -> Iterator[str]:
-        """Iterate all forward-time fitted spectra files."""
+        """Iterate all fitted spectra files."""
         return map(lambda x: self.format_fitted_spectra_file(*x), self.iter_forward_all())
 
-    def initial_forward_ks_distance_files(self) -> Iterator[str]:
-        """Iterate all forward-time ks distance files."""
+    def forward_recombination_search_files(self) -> Iterator[str]:
+        """Iterate all forward-time recombination search files."""
         return map(
-            lambda x: self.format_initial_ks_distance_file(*x), self.iter_forward_demos()
+            lambda x: self.format_recombination_search_file(*x), self.iter_forward_rec_search()
         )
-
-    def fitted_forward_ks_distance_files(self) -> Iterator[str]:
-        """Iterate all forward-time ks distance files."""
-        return map(lambda x: self.format_fitted_ks_distance_file(*x), self.iter_forward_all())
 
 def configuration_from_json(config_file: Union[str, bytes, PathLike]):
     """Read a configuration from a json file."""

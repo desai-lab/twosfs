@@ -24,17 +24,19 @@
     "num_bp": 100,
     "num_trees": 500,
     "genome_cutoff": 0.2,
-    "nruns": 300
+    "nruns": 300,
+    "search_r_low": 0.71,
+    "search_r_high": 1.41,
+    "rec_rates": [1e-05]
   },
-  "positive_sel_coeffs": [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.2],
-  "positive_mut_rates": [1e-09, 1e-10],
-  "rec_rates": [1e-05],
+  "positive_sel_coeffs": [0.025],
+  "positive_mut_rates": [1e-09],
   "power_pair_densities": [10000],
   "power_sequence_lengths": [25],
   "power_num_samples": 1000,
-  "power_reps": 5,
+  "power_reps": 100,
   "search_r_low": 0.071,
   "search_r_high": 0.141,
   "search_iters": 5,
-  "search_num_replicates": 200000
+  "search_num_replicates": 500000
 }

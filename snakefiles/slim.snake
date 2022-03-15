@@ -3,20 +3,21 @@ import msprime
 import random
 import json
 import os
+import h5py
 
 from twosfs.config import configuration_from_json, parse_parameter_string
 from slim.sfs_slim import spectra_from_tree_file
 from twosfs.simulations import filename2seed
+from twosfs.statistics import max_ks_distance
 
 config = configuration_from_json("simulation_parameters.json")
 
-rule compute_ks_distances_forward:
+rule search_forward_recombination_all:
     input:
-        list(config.initial_forward_ks_distance_files()),
-        list(config.fitted_forward_ks_distance_files()),
+        list(config.forward_recombination_search_files()),
     resources:
-        mem=100,
-        time=5
+        mem = 100,
+        time = 5
 
 rule simulate_tree_file:
     output:
@@ -31,6 +32,7 @@ rule simulate_tree_file:
         params["genome_length"] = config.slim_parameters["genome_length"]
         params["pop_size"] = config.slim_parameters["pop_size"]
         os.system( "slim -d \"fname='{}'\" -d mut_rate={} -d s={} -d rec_rate={} -d L={} -d N={} -s {} slim/run_slim_simulation.txt".format(output[0].replace('"','\\\"'), params["mut_rate"], params["s"], params["rec_rate"], int(params["genome_length"]), int(params["pop_size"]), filename2seed(output[0])) )
+
 
 ruleorder: spectra_from_SLiM > simulate_initial_spectra
 
@@ -76,23 +78,76 @@ rule add_runs_from_SLiM:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
 
+
+ruleorder: search_recombination_rate_from_slim > search_recombination_rate
+
+rule search_recombination_rate_from_slim:
+    input:
+        spectra_file=config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
+        demo_file=config.fitted_demography_file,
+    output:
+        config.recombination_search_file,
+    wildcard_constraints:
+        model = "sel"
+    resources:
+        time=500,
+        mem=5000,
+    run:
+        params=parse_parameter_string(wildcards.params)
+        rng = np.random.default_rng(filename2seed(output[0]))
+        raw_spectra = load_spectra(input.spectra_file)
+        with open(input.demo_file) as f:
+            model_parameters = json.load(f)
+        num_pairs = int(wildcards.pair_density) * degenerate_pairs(
+            raw_spectra, int(wildcards.sequence_length)
+        )
+        spectra_samp = sample_spectra(raw_spectra, num_pairs=num_pairs, rng=rng)
+        sim_kwargs = dict(
+            model="pwc",
+            model_parameters=model_parameters,
+            msprime_parameters=(
+                config.msprime_parameters
+                | {
+                    "sequence_length": int(wildcards.sequence_length),
+                    "num_replicates": config.search_num_replicates,
+                }
+            ),
+            random_seed=rng,
+        )
+        search_recombination_rates_save(
+            output[0],
+            spectra_samp,
+            config.k_max,
+            wildcards.folded == "True",
+            sim_kwargs,
+            params["rec_rate"] * config.slim_parameters["search_r_low"] * spectra_samp.tajimas_pi(),
+            params["rec_rate"] * config.slim_parameters["search_r_high"]* spectra_samp.tajimas_pi(),
+            config.search_iters,
+        )
+
+
 rule simulate_fitted_spectra_from_SLiM:
+    input:
+        search_file=config.recombination_search_file,
+        demo_file=config.fitted_demography_file,
     output:
         temp(config.fitted_spectra_file),
-    input:
-        config.fitted_demography_file,
-        config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
     wildcard_constraints:
-        model="sel",
         rep="\d+",
     resources:
-        time=15,
+        time=60,
         mem=1000,
     run:
-        empirical_t2 = load_spectra(input[1]).tajimas_pi()
-        with open(input[0], "r") as f:
+        rng = np.random.default_rng(filename2seed(output[0]))
+        with h5py.File(input.search_file) as f:
+            attrs_h = dict(f.get("spectra_high").attrs)
+            attrs_l = dict(f.get("spectra_low").attrs)
+        if attrs_h["ks_distance"] < attrs_l["ks_distance"]:
+            r = attrs_h["recombination_rate"]
+        else:
+           r = attrs_l["recombination_rate"]
+        with open(input.demo_file, "r") as f:
             model_parameters = json.load(f)
-        r = parse_parameter_string(wildcards.params)["rec_rate"] * empirical_t2 * float(wildcards.rec_factor)
         spectra = simulate_spectra(
             model="pwc",
             model_parameters=model_parameters,
