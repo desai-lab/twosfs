@@ -80,8 +80,8 @@ class Configuration:
 
     def iter_forward_models(self) -> Iterator[tuple[str, dict]]:
         """Return an iterator over all forward-time parameter combinations."""
-        for s in self.positive_sel_coeffs:
-            for mu in self.positive_mut_rates:
+        for mu in self.positive_mut_rates:
+            for s in self.positive_sel_coeffs:
                 for r in self.slim_parameters["rec_rates"]:
                     yield "sel", dict(s=s, rec_rate=r, mut_rate=mu)
         yield "sel", dict(s=0, rec_rate=1e-05, mut_rate = 1e-09)
@@ -127,6 +127,26 @@ class Configuration:
             power_rep=power_rep,
         )
 
+    def format_fitted_spectra_file(
+        self,
+        model: str,
+        params: dict,
+        folded: bool,
+        pair_density: int,
+        sequence_length: int,
+        power_rep: int,
+    ) -> str:
+        """Get a fitted spectra filename."""
+        return self.fitted_spectra_file.format(
+            model=model,
+            params=make_parameter_string(params),
+            folded=folded,
+            pair_density=pair_density,
+            sequence_length=sequence_length,
+            power_rep=power_rep,
+            rep="all"
+        )
+
     def iter_demos(self) -> Iterator[tuple[str, dict, bool]]:
         """Return an iterator over all model-parameter-demography combinations."""
         for model, params in self.iter_models():
@@ -136,7 +156,8 @@ class Configuration:
     def iter_forward_demos(self) -> Iterator[tuple[str, dict, bool]]:
         """Return an iterator over all forward-time model-parameter-demography combinations."""
         for model, params in self.iter_forward_models():
-            for folded in [True, False]:
+            # for folded in [True, False]:
+            for folded in [True]:
                 yield model, params, folded
 
     def iter_rec_search(self) -> Iterator[tuple[str, dict, bool, int, int, int]]:
@@ -179,13 +200,14 @@ class Configuration:
 
     def fitted_forward_spectra_files(self) -> Iterator[str]:
         """Iterate all fitted spectra files."""
-        return map(lambda x: self.format_fitted_spectra_file(*x), self.iter_forward_all())
+        return map(lambda x: self.format_fitted_spectra_file(*x), self.iter_forward_rec_search())
 
     def forward_recombination_search_files(self) -> Iterator[str]:
         """Iterate all forward-time recombination search files."""
         return map(
             lambda x: self.format_recombination_search_file(*x), self.iter_forward_rec_search()
         )
+
 
 def configuration_from_json(config_file: Union[str, bytes, PathLike]):
     """Read a configuration from a json file."""

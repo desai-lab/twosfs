@@ -19,6 +19,13 @@ rule search_forward_recombination_all:
         mem = 100,
         time = 5
 
+rule fitted_forward_spectra_all:
+    input:
+        config.fitted_forward_spectra_files()
+    resources:
+        mem = 100,
+        time = 5
+
 rule simulate_tree_file:
     output:
         config.tree_file,
@@ -135,7 +142,7 @@ rule simulate_fitted_spectra_from_SLiM:
     wildcard_constraints:
         rep="\d+",
     resources:
-        time=60,
+        time=20,
         mem=1000,
     run:
         rng = np.random.default_rng(filename2seed(output[0]))
