@@ -16,15 +16,29 @@ rule search_forward_recombination_all:
     input:
         list(config.forward_recombination_search_files()),
     resources:
-        mem = 100,
-        time = 5
+        mem=100,
+        time=5,
 
 rule fitted_forward_spectra_all:
     input:
         config.fitted_forward_spectra_files()
     resources:
-        mem = 100,
-        time = 5
+        mem=100,
+        time=5,
+
+rule fitted_forward_demographies_all:
+    input:
+        config.fitted_forward_demography_files()
+    resources:
+        mem=100,
+        time=5,
+
+rule initial_forward_ks_files_all:
+    input:
+        list(config.initial_forward_ks_files())
+    resources:
+        mem=100,
+        time=5,
 
 rule simulate_tree_file:
     output:

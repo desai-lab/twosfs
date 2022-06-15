@@ -9,6 +9,7 @@ from twosfs.statistics import (
     search_recombination_rates_save,
     degenerate_pairs,
     sample_spectra,
+    sample_ks_statistics,
 )
 
 import time
@@ -19,16 +20,23 @@ config = configuration_from_json("simulation_parameters.json")
 rule simulate_initial_spectra_all:
     input:
         list(config.initial_spectra_files()),
-
+    resources:
+        time=5,
+        mem=100,
 
 rule fit_demographies_all:
     input:
         list(config.fitted_demography_files()),
-
+    resources:
+        time=5,
+        mem=100,
 
 rule search_recombination_all:
     input:
         list(config.recombination_search_files()),
+    resources:
+        time=5,
+        mem=100,
 
 
 rule simulate_initial_spectra:
@@ -36,6 +44,9 @@ rule simulate_initial_spectra:
         temp(config.initial_spectra_file),
     wildcard_constraints:
         rep="\d+",
+    resources:
+        time=20,
+        mem=1000,
     run:
         spectra = simulate_spectra(
             model=wildcards.model,
@@ -124,4 +135,25 @@ rule add_runs:
     run:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
+
+rule compute_initial_ks_distances:
+    output:
+        config.initial_ks_distance_file,
+    input:
+        spec_comp=config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
+        spec_null=config.fitted_spectra_file.replace(".rep={rep}.", ".rep=all."),
+    resources:
+        time=10,
+        mem=1000,
+    run:
+        num_pairs = int(wildcards.sequence_length) * float(wildcards.pair_density)
+        ks = sample_ks_statistics(
+             load_spectra(input.spec_comp),
+             load_spectra(input.spec_null),
+             wildcards.sequence_length,
+             wildcards.folded,
+             config.n_reps,
+             num_pairs
+        )
+        print(ks)
 

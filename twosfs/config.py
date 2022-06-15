@@ -14,6 +14,8 @@ class Configuration:
     fitted_demography_file: str = field(init=False)
     # number of parallel msprime jobs
     nruns: int
+    # number of resampling replicates for KS distance
+    n_reps: int
     #  2 r * mean_coalescence_time
     scaled_recombination_rate: float
     msprime_parameters: Dict[str, Any]
@@ -67,6 +69,22 @@ class Configuration:
         self.tree_file = (
             self.simulation_directory
             + "/tree_files/model={model}.params={params}/model={model}.params={params}.rep={rep}.trees"
+        )
+        self.initial_ks_distance_file = (
+            self.simulation_directory
+            + "/initial_ks_distances/model={model}.params={params}."
+            + "folded={folded}."
+            + "pair_density={pair_density}."
+            + "sequence_length={sequence_length}."
+            + "power_rep={power_rep}.hdf5"
+        )
+        self.fitted_ks_distance_file = (
+            self.simulation_directory
+            + "/fitted_ks_distances/model={model}.params={params}."
+            + "folded={folded}."
+            + "pair_density={pair_density}."
+            + "sequence_length={sequence_length}."
+            + "power_rep={power_rep}.hdf5"
         )
 
     def iter_models(self) -> Iterator[tuple[str, dict]]:
@@ -147,6 +165,25 @@ class Configuration:
             rep="all"
         )
 
+    def format_initial_ks_file(
+        self,
+        model: str,
+        params: dict,
+        folded: bool,
+        pair_density: int,
+        sequence_length: int,
+        power_rep: int,
+    ) -> str:
+        return self.initial_ks_distance_file.format(
+            model=model,
+            params=make_parameter_string(params),
+            folded=folded,
+            pair_density=pair_density,
+            sequence_length=sequence_length,
+            power_rep=power_rep,
+            rep="all"
+        )
+
     def iter_demos(self) -> Iterator[tuple[str, dict, bool]]:
         """Return an iterator over all model-parameter-demography combinations."""
         for model, params in self.iter_models():
@@ -206,6 +243,12 @@ class Configuration:
         """Iterate all forward-time recombination search files."""
         return map(
             lambda x: self.format_recombination_search_file(*x), self.iter_forward_rec_search()
+        )
+
+    def initial_forward_ks_files(self) -> Iterator[str]:
+        """Iterate all forward-time KS distance files"""
+        return map(
+            lambda x: self.format_initial_ks_file(*x), self.iter_forward_rec_search()
         )
 
 
