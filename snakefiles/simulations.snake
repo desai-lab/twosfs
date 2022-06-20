@@ -4,12 +4,13 @@ import gzip
 
 from twosfs.config import configuration_from_json, parse_parameter_string
 from twosfs.simulations import filename2seed, simulate_spectra
-from twosfs.spectra import add_spectra, load_spectra
+from twosfs.spectra import add_spectra, load_spectra, spectra_from_hdf5
 from twosfs.statistics import (
     search_recombination_rates_save,
     degenerate_pairs,
     sample_spectra,
     sample_ks_statistics,
+    sample_ks_statistics_save,
 )
 
 import time
@@ -34,6 +35,20 @@ rule fit_demographies_all:
 rule search_recombination_all:
     input:
         list(config.recombination_search_files()),
+    resources:
+        time=5,
+        mem=100,
+
+rule fitted_spectra_all:
+    input:
+        list(config.fitted_spectra_files()),
+    resources:
+        time=5,
+        mem=100,
+
+rule ks_distances_all:
+    input:
+        list(config.ks_distance_files()),
     resources:
         time=5,
         mem=100,
@@ -120,6 +135,41 @@ rule search_recombination_rate:
         )
 
 
+rule simulate_fitted_spectra_file:
+    input:
+        search_file=config.recombination_search_file,
+        demo_file=config.fitted_demography_file,
+    output:
+        config.fitted_spectra_file,
+    resources:
+        time=20,
+        mem=1000,
+    run:
+        with h5py.File(input.search_file) as f:
+            attrs_h = dict(f.get("spectra_high").attrs)
+            attrs_l = dict(f.get("spectra_low").attrs)
+        if attrs_h["ks_distance"] < attrs_l["ks_distance"]:
+            r = attrs_h["recombination_rate"]
+        else:
+           r = attrs_l["recombination_rate"]
+        with open(input.demo_file, "r") as f:
+            model_parameters = json.load(f)
+        msprime_parameters = (
+            config.msprime_parameters
+            | {
+                "sequence_length": int(wildcards.sequence_length),
+            }
+        )
+        spectra = simulate_spectra(
+            model="pwc",
+            model_parameters=model_parameters,
+            msprime_parameters=msprime_parameters,
+            scaled_recombination_rate=r,
+            random_seed=filename2seed(output[0]),
+        )
+        spectra.save(output[0])
+
+
 rule add_runs:
     output:
         "{prefix}.rep=all.{ext}",
@@ -136,24 +186,30 @@ rule add_runs:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
 
-rule compute_initial_ks_distances:
+rule compute_ks_distances:
     output:
-        config.initial_ks_distance_file,
+        config.ks_distance_file,
     input:
-        spec_comp=config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
-        spec_null=config.fitted_spectra_file.replace(".rep={rep}.", ".rep=all."),
+        rec_search_file=config.recombination_search_file,
+        spec_null=config.fitted_spectra_file,
     resources:
         time=10,
         mem=1000,
     run:
-        num_pairs = int(wildcards.sequence_length) * float(wildcards.pair_density)
-        ks = sample_ks_statistics(
-             load_spectra(input.spec_comp),
-             load_spectra(input.spec_null),
-             wildcards.sequence_length,
-             wildcards.folded,
-             config.n_reps,
-             num_pairs
+        spec_null = load_spectra(input.spec_null)
+        with h5py.File(input.rec_search_file) as hf:
+            spec_comp = spectra_from_hdf5(hf.get("spectra_target"))
+        num_pairs = int(wildcards.pair_density) * degenerate_pairs(
+            spec_null, int(wildcards.sequence_length)
         )
-        print(ks)
+        sample_ks_statistics_save(
+            spectra_comp = spec_comp,
+            spectra_null = spec_null,
+            k_max = int(wildcards.sequence_length),
+            folded = wildcards.folded,
+            n_reps = config.n_reps * config.nruns,
+            num_pairs = num_pairs,
+            output_file = output[0],
+        )
+
 

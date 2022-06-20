@@ -64,11 +64,19 @@ class Configuration:
             self.simulation_directory
             + "/fitted_spectra/model={model}.params={params}.folded={folded}."
             + "pair_density={pair_density}.sequence_length={sequence_length}."
-            + "power_rep={power_rep}.rep={rep}.hdf5"
+            + "power_rep={power_rep}.hdf5"
         )
         self.tree_file = (
             self.simulation_directory
             + "/tree_files/model={model}.params={params}/model={model}.params={params}.rep={rep}.trees"
+        )
+        self.ks_distance_file = (
+            self.simulation_directory
+            + "/ks_distances/model={model}.params={params}."
+            + "folded={folded}."
+            + "pair_density={pair_density}."
+            + "sequence_length={sequence_length}."
+            + "power_rep={power_rep}.hdf5"
         )
         self.initial_ks_distance_file = (
             self.simulation_directory
@@ -162,7 +170,24 @@ class Configuration:
             pair_density=pair_density,
             sequence_length=sequence_length,
             power_rep=power_rep,
-            rep="all"
+        )
+
+    def format_ks_distance_file(
+        self,
+        model: str,
+        params: dict,
+        folded: bool,
+        pair_density: int,
+        sequence_length: int,
+        power_rep: int,
+    ) -> str:
+        return self.ks_distance_file.format(
+            model=model,
+            params=make_parameter_string(params),
+            folded=folded,
+            pair_density=pair_density,
+            sequence_length=sequence_length,
+            power_rep=power_rep,
         )
 
     def format_initial_ks_file(
@@ -227,6 +252,12 @@ class Configuration:
             lambda x: self.format_recombination_search_file(*x), self.iter_rec_search()
         )
 
+    def fitted_spectra_files(self) -> Iterator[str]:
+        "iterate all fitted spectra files."""
+        return map(
+            lambda x: self.format_fitted_spectra_file(*x), self.iter_rec_search()
+        )
+
     def initial_forward_spectra_files(self) -> Iterator[str]:
         """Iterate all forward-time initial spectra files."""
         return map(lambda x: self.format_initial_spectra_file(*x), self.iter_forward_models())
@@ -243,6 +274,11 @@ class Configuration:
         """Iterate all forward-time recombination search files."""
         return map(
             lambda x: self.format_recombination_search_file(*x), self.iter_forward_rec_search()
+        )
+    def ks_distance_files(self) -> Iterator[str]:
+        """Iterate all KS distance files"""
+        return map(
+            lambda x: self.format_ks_distance_file(*x), self.iter_rec_search()
         )
 
     def initial_forward_ks_files(self) -> Iterator[str]:

@@ -222,11 +222,12 @@ def sample_ks_statistics(
     """Sample 2-SFS KS statistics between spectra_comp and spectra_null."""
     nonzero = num_pairs > 0
     np_nz = num_pairs[nonzero]
+    max_d = num_pairs.shape[0]
     twosfs_comp = reweight_and_symmetrize(
-        twosfs_pdf(spectra_comp, k_max, folded)[nonzero], np_nz
+        twosfs_pdf(spectra_comp, k_max, folded)[:max_d][nonzero], np_nz
     )
     twosfs_null = reweight_and_symmetrize(
-        twosfs_pdf(spectra_null, k_max, folded)[nonzero], np_nz
+        twosfs_pdf(spectra_null, k_max, folded)[:max_d][nonzero], np_nz
     )
     ks_values = np.zeros(n_reps)
     for i in range(n_reps):
@@ -235,6 +236,39 @@ def sample_ks_statistics(
         )
         ks_values[i] = max_ks_distance(resampled, twosfs_null)
     return ks_values * np.sqrt(sum(np_nz))
+
+
+def sample_ks_statistics_save(
+    spectra_comp: Spectra,
+    spectra_null: Spectra,
+    k_max: int,
+    folded: bool,
+    n_reps: int,
+    num_pairs: np.ndarray,
+    output_file,
+) -> np.ndarray:
+    """Save sampled 2-SFS KS statistics from spectra_comp and spectra_null."""
+    ks_null = sample_ks_statistics(
+        spectra_null,
+        spectra_null,
+        k_max,
+        folded,
+        n_reps,
+        num_pairs,
+    )
+    ks_comp = sample_ks_statistics(
+        spectra_comp,
+        spectra_null,
+        k_max,
+        folded,
+        n_reps,
+        num_pairs,
+    )
+    print(ks_null)
+    print(ks_comp)
+    with h5py.File(output_file, "w") as hf:
+        data_null = hf.create_dataset("ks_null", data = ks_null)
+        data_comp = hf.create_dataset("ks_comp", data = ks_comp)
 
 
 def _axis_combinations(n_dims: int) -> list[tuple]:

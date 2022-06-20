@@ -35,9 +35,9 @@
   "power_pair_densities": [10000],
   "power_sequence_lengths": [25],
   "power_num_samples": 1000,
-  "power_reps": 5,
+  "power_reps": 1,
   "search_r_low": 0.071,
   "search_r_high": 0.141,
-  "search_iters": 5,
+  "search_iters": 15,
   "search_num_replicates": 500000
 }

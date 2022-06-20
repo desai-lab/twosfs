@@ -154,6 +154,7 @@ rule simulate_fitted_spectra_from_SLiM:
     output:
         temp(config.fitted_spectra_file),
     wildcard_constraints:
+        model="sel",
         rep="\d+",
     resources:
         time=20,
