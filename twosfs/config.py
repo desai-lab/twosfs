@@ -212,7 +212,8 @@ class Configuration:
     def iter_demos(self) -> Iterator[tuple[str, dict, bool]]:
         """Return an iterator over all model-parameter-demography combinations."""
         for model, params in self.iter_models():
-            for folded in [True, False]:
+            # for folded in [True, False]:
+            for folded in [True]:
                 yield model, params, folded
 
     def iter_forward_demos(self) -> Iterator[tuple[str, dict, bool]]:
@@ -281,10 +282,10 @@ class Configuration:
             lambda x: self.format_ks_distance_file(*x), self.iter_rec_search()
         )
 
-    def initial_forward_ks_files(self) -> Iterator[str]:
-        """Iterate all forward-time KS distance files"""
+    def forward_ks_distance_files(self) -> Iterator[str]:
+        """Iterate all KS distance files"""
         return map(
-            lambda x: self.format_initial_ks_file(*x), self.iter_forward_rec_search()
+            lambda x: self.format_ks_distance_file(*x), self.iter_forward_rec_search()
         )
 
 

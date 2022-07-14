@@ -62,7 +62,7 @@ def _last_dims_square(instance, attribute, value):
 def _zero_if_num_sites(instance, attribute, value):
     if instance.num_sites == 0 and np.any(value > 0):
         raise ValueError(
-            f"If num_sites == 0, {attribute.name} must only contain zeros."
+            "If num_sites == 0, {attribute.name} must only contain zeros."
         )
 
 
@@ -282,7 +282,6 @@ _name = "spectra"
 
 def load_spectra(input_file, format: str = "hdf5") -> Spectra:
     """Read a Spectra object from file. Format may be hdf5 or npz."""
-    print(input_file)
     if format == "hdf5":
         return _load_hdf5(input_file)
     elif format == "npz":
@@ -376,7 +375,7 @@ def spectra_from_sites(
         for i, dist in enumerate(windows[:-1]):
             for d in range(dist, windows[i + 1]):
                 try:
-                    ac2 = allele_count_dict[pos + d]
+                    ac2 = allele_count_dict[str(int(pos) + d)]
                 except KeyError:
                     continue
                 num_pairs[i] += 1

@@ -100,7 +100,7 @@ rule search_recombination_rate:
     output:
         config.recombination_search_file,
     resources:
-        time=500,
+        time=120,
         mem=5000,
     run:
         rng = np.random.default_rng(filename2seed(output[0]))
@@ -186,24 +186,27 @@ rule add_runs:
         total = add_spectra(load_spectra(infn) for infn in input)
         total.save(output[0])
 
+
 rule compute_ks_distances:
     output:
         config.ks_distance_file,
     input:
         rec_search_file=config.recombination_search_file,
-        spec_null=config.fitted_spectra_file,
     resources:
         time=10,
         mem=1000,
     run:
-        spec_null = load_spectra(input.spec_null)
         with h5py.File(input.rec_search_file) as hf:
             spec_comp = spectra_from_hdf5(hf.get("spectra_target"))
+            if dict(hf.get("spectra_high").attrs)["ks_distance"] < dict(hf.get("spectra_low").attrs)["ks_distance"]:
+                spec_null = spectra_from_hdf5(hf.get("spectra_high"))
+            else:
+                spec_null = spectra_from_hdf5(hf.get("spectra_low"))
         num_pairs = int(wildcards.pair_density) * degenerate_pairs(
             spec_null, int(wildcards.sequence_length)
         )
+        print(spec_comp.num_pairs)
         sample_ks_statistics_save(
-            spectra_comp = spec_comp,
             spectra_null = spec_null,
             k_max = int(wildcards.sequence_length),
             folded = wildcards.folded,
@@ -211,5 +214,4 @@ rule compute_ks_distances:
             num_pairs = num_pairs,
             output_file = output[0],
         )
-
 

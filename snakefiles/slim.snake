@@ -19,6 +19,13 @@ rule search_forward_recombination_all:
         mem=100,
         time=5,
 
+rule forward_ks_distances_all:
+    input:
+        list(config.forward_ks_distance_files())
+    resources:
+        mem=100,
+        time=5,
+
 rule fitted_forward_spectra_all:
     input:
         config.fitted_forward_spectra_files()
@@ -33,13 +40,6 @@ rule fitted_forward_demographies_all:
         mem=100,
         time=5,
 
-rule initial_forward_ks_files_all:
-    input:
-        list(config.initial_forward_ks_files())
-    resources:
-        mem=100,
-        time=5,
-
 rule simulate_tree_file:
     output:
         config.tree_file,
@@ -47,7 +47,7 @@ rule simulate_tree_file:
         rep="\d+",
     resources:
         mem=2000,
-        time=600
+        time=800
     run:
         params=parse_parameter_string(wildcards.params)
         params["genome_length"] = config.slim_parameters["genome_length"]
@@ -111,7 +111,7 @@ rule search_recombination_rate_from_slim:
     wildcard_constraints:
         model = "sel"
     resources:
-        time=500,
+        time=30,
         mem=5000,
     run:
         params=parse_parameter_string(wildcards.params)

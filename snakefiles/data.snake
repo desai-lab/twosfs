@@ -1,0 +1,118 @@
+
+rule spectra_from_sites:
+    input:
+        site_file="{prefix}_sites.json",
+        param_file="{prefix}_params.json",
+    output:
+        spec_file="{prefix}_initial_spectra.hdf5",
+    resources:
+        time=10,
+        mem=1000,
+    run:
+        with open(input.site_file) as sf:
+            sites = json.load(sf)
+        with open(input.param_file) as pf:
+            params = json.load(pf)
+        spec = spectra_from_sites(
+           num_samples = params["num_samples"],
+            windows = np.arange(params["k_max"]) + 1,
+            recombination_rate = params["recombination_rate"],
+            allele_count_dict = sites
+        )
+        spec.save(output.spec_file)
+
+rule fit_demography_to_data:
+    input:
+        spec_file="{prefix}_initial_spectra.hdf5",
+        param_file="{prefix}_params.json",
+    output:
+        demo_file="{prefix}_demo.folded={folded}.txt",
+    resources:
+        time=10,
+        mem=1000,
+    run:
+        with open(input.param_file) as pf:
+            params = json.load(pf)
+        spectra = load_spectra(input.spec_file)
+        fit = spectra.fit_pwc_demography(
+            folded=wildcards.folded,
+            k_max=params["k_max"],
+            num_epochs=params["num_epochs"],
+            penalty_coef=params["penalty_coef"],
+        )
+        with open(output.demo_file, "w") as f:
+            f.write(fit.toJson())
+
+
+rule search_recombination_rate_from_data:
+    input:
+        spectra_file="{prefix}_initial_spectra.hdf5",
+        demo_file="{prefix}_demo.folded={folded}.txt",
+        param_file="{prefix}_params.json"
+    output:
+        search_file="{prefix}_rec_search.folded={folded}.hdf5"
+    resources:
+        time=120,
+        mem=5000,
+    run:
+        with open(input.param_file) as pf:
+            params = json.load(pf)
+        rng = np.random.default_rng(filename2seed(output.search_file))
+        data_spectra = load_spectra(input.spectra_file)
+        with open(input.demo_file) as f:
+            model_parameters = json.load(f)
+        num_pairs = data_spectra.num_pairs
+        sim_kwargs = dict(
+            model="pwc",
+            model_parameters=model_parameters,
+            msprime_parameters={
+                "samples": params["num_samples"],
+                "ploidy": params["ploidy"],
+                "sequence_length": params["k_max"],
+                "num_replicates": params["search_num_replicates"]
+            },
+            random_seed=rng,
+        )
+        search_recombination_rates_save(
+            output.search_file,
+            data_spectra,
+            params["k_max"],
+            bool(wildcards.folded),
+            sim_kwargs,
+            params["search_r_low"],
+            params["search_r_high"],
+            params["search_iters"],
+        )
+
+
+rule compute_ks_distances_from_data:
+    input:
+        rec_search_file="{prefix}_rec_search.folded={folded}.hdf5",
+        spec_file="{prefix}_initial_spectra.hdf5",
+        param_file="{prefix}_params.json",
+    output:
+        ks_distance_file="{prefix}_ks_distance.folded={folded}.hdf5",
+    resources:
+        time=10,
+        mem=1000,
+    run:
+        with open(input.param_file) as pf:
+            params = json.load(pf)
+        spec_orig = load_spectra(input.spec_file)
+        with h5py.File(input.rec_search_file) as hf:
+            spec_comp = spectra_from_hdf5(hf.get("spectra_target"))
+            if dict(hf.get("spectra_high").attrs)["ks_distance"] < dict(hf.get("spectra_low").attrs)["ks_distance"]:
+                spec_null = spectra_from_hdf5(hf.get("spectra_high"))
+            else:
+                spec_null = spectra_from_hdf5(hf.get("spectra_low"))
+        num_pairs = spec_comp.num_pairs
+        print(num_pairs)
+        sample_ks_statistics_save(
+            spectra_null = spec_null,
+            k_max = params["k_max"],
+            folded = wildcards.folded,
+            n_reps = int(1e4),
+            num_pairs = num_pairs,
+            output_file = output.ks_distance_file,
+        )
+

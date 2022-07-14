@@ -137,6 +137,7 @@ def golden_section_search(
     f: Callable, a: float, b: float, num_iters: int, *args, **kwargs
 ):
     """Minimize a scalar function by golden section search."""
+    print(a, b)
     lamb = 1 / golden
     x_l = a + (b - a) * (1 - lamb)
     f_l = f(x_l, *args, **kwargs)
@@ -155,6 +156,7 @@ def golden_section_search(
             f_l = f_u
             x_u = a + (b - a) * lamb
             f_u = f(x_u, *args, **kwargs)
+        print(a, b)
     return (x_l, x_u), (f_l, f_u)
 
 
@@ -235,11 +237,10 @@ def sample_ks_statistics(
             resample_marginal_pdfs(twosfs_comp, np_nz), np_nz
         )
         ks_values[i] = max_ks_distance(resampled, twosfs_null)
-    return ks_values * np.sqrt(sum(np_nz))
+    return ks_values # * np.sqrt(sum(np_nz))
 
 
 def sample_ks_statistics_save(
-    spectra_comp: Spectra,
     spectra_null: Spectra,
     k_max: int,
     folded: bool,
@@ -256,6 +257,7 @@ def sample_ks_statistics_save(
         n_reps,
         num_pairs,
     )
+    """
     ks_comp = sample_ks_statistics(
         spectra_comp,
         spectra_null,
@@ -264,11 +266,10 @@ def sample_ks_statistics_save(
         n_reps,
         num_pairs,
     )
-    print(ks_null)
-    print(ks_comp)
+    """
     with h5py.File(output_file, "w") as hf:
         data_null = hf.create_dataset("ks_null", data = ks_null)
-        data_comp = hf.create_dataset("ks_comp", data = ks_comp)
+        # data_comp = hf.create_dataset("ks_comp", data = ks_comp)
 
 
 def _axis_combinations(n_dims: int) -> list[tuple]:
