@@ -336,6 +336,9 @@ def spectra_from_TreeSequence(
     )
     onesfs = np.sum(afs, axis=0)
     twosfs = afs[0, :, None] * afs[:, None, :]
+    twosfs += twosfs.T
+    for i in range(twosfs.shape[0]):
+        twosfs[i,i] /= 2
     return Spectra(
         num_samples, windows, recombination_rate, num_sites, num_pairs, onesfs, twosfs
     )
@@ -380,7 +383,8 @@ def spectra_from_sites(
                     continue
                 num_pairs[i] += 1
                 twosfs[i, ac1, ac2] += 1
-                twosfs[i, ac2, ac1] += 1
+                if ac1 =! ac2:
+                    twosfs[i, ac2, ac1] += 1
     return Spectra(
         num_samples, windows, recombination_rate, num_sites, num_pairs, onesfs, twosfs
     )
