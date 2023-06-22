@@ -30,8 +30,10 @@
     "search_r_high": 1.41,
     "rec_rates": [1e-05]
   },
-  "positive_sel_coeffs": [0.025, 0.05, 0.075, 0.1],
-  "positive_mut_rates": [1e-09, 1e-10],
+  "positive_sel_coeffs": [
+    0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.05, 0.055, 0.06
+  ],
+  "positive_mut_rates": [1e-10, 1e-11],
   "power_pair_densities": [10000],
   "power_sequence_lengths": [25],
   "power_num_samples": 1000,

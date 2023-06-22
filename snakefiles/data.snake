@@ -1,3 +1,32 @@
+rule dros_4D_data_all:
+    input:
+        ["dros_data/Chr2L/Chr2L_4D_ks_distance.folded=True.hdf5",
+         "dros_data/Chr2R/Chr2R_4D_ks_distance.folded=True.hdf5",
+         "dros_data/Chr3L/Chr3L_4D_ks_distance.folded=True.hdf5",
+         "dros_data/Chr3R/Chr3R_4D_ks_distance.folded=True.hdf5"]
+    resources:
+        time=5,
+        mem=100,
+
+rule cod_NC_chroms_all:
+    input:
+        ["cod_data/NC_0440{}/cod_NC_0440{}_ks_distance.folded=True.hdf5".format(i, i) for i in range(48, 71)]
+        # ["cod_data/NC_0440{}/cod_NC_0440{}_demo.folded=True.txt".format(i, i) for i in range(48, 71)]
+    resources:
+        time=5,
+        mem=100,
+
+rule cod_data_all:
+    input:
+        ["cod_data/NC_044048/cod_NC_044048_ks_distance.folded=True.hdf5",
+         "cod_data/NC_044049/cod_NC_044049_ks_distance.folded=True.hdf5",
+         "cod_data/NC_044050/cod_NC_044050_ks_distance.folded=True.hdf5",
+         "cod_data/NW_021964142/cod_NW_021964142_ks_distance.folded=True.hdf5",
+         "cod_data/NW_021964143/cod_NW_021964143_ks_distance.folded=True.hdf5",
+         "cod_data/NW_021963950/cod_NW_021963950_ks_distance.folded=True.hdf5"]
+    resources:
+        time=5,
+        mem=100,
 
 rule spectra_from_sites:
     input:
@@ -6,20 +35,22 @@ rule spectra_from_sites:
     output:
         spec_file="{prefix}_initial_spectra.hdf5",
     resources:
-        time=10,
-        mem=1000,
+        time=20,
+        mem=10000,
     run:
         with open(input.site_file) as sf:
             sites = json.load(sf)
         with open(input.param_file) as pf:
             params = json.load(pf)
         spec = spectra_from_sites(
-           num_samples = params["num_samples"],
-            windows = np.arange(params["k_max"]) + 1,
+            num_samples = params["num_samples"] * params["ploidy"],
+            windows = np.arange(params["max_d"] + 1),
             recombination_rate = params["recombination_rate"],
             allele_count_dict = sites
         )
+        print(spec.num_pairs)
         spec.save(output.spec_file)
+
 
 rule fit_demography_to_data:
     input:
@@ -28,8 +59,8 @@ rule fit_demography_to_data:
     output:
         demo_file="{prefix}_demo.folded={folded}.txt",
     resources:
-        time=10,
-        mem=1000,
+        time=20,
+        mem=10000,
     run:
         with open(input.param_file) as pf:
             params = json.load(pf)
@@ -52,8 +83,8 @@ rule search_recombination_rate_from_data:
     output:
         search_file="{prefix}_rec_search.folded={folded}.hdf5"
     resources:
-        time=120,
-        mem=5000,
+        time=300,
+        mem=50000,
     run:
         with open(input.param_file) as pf:
             params = json.load(pf)
@@ -68,20 +99,22 @@ rule search_recombination_rate_from_data:
             msprime_parameters={
                 "samples": params["num_samples"],
                 "ploidy": params["ploidy"],
-                "sequence_length": params["k_max"],
+                "sequence_length": params["max_d"],
                 "num_replicates": params["search_num_replicates"]
             },
             random_seed=rng,
         )
+        distances = (np.arange(params["max_d"] // 3) + 1) * 3
         search_recombination_rates_save(
-            output.search_file,
-            data_spectra,
-            params["k_max"],
-            bool(wildcards.folded),
-            sim_kwargs,
-            params["search_r_low"],
-            params["search_r_high"],
-            params["search_iters"],
+            output_file = output.search_file,
+            spectra = data_spectra,
+            k_max = params["k_max"],
+            distances = distances,
+            folded = bool(wildcards.folded),
+            sim_kwargs = sim_kwargs,
+            r_low = params["search_r_low"],
+            r_high = params["search_r_high"],
+            num_iters = params["search_iters"],
         )
 
 
@@ -105,14 +138,14 @@ rule compute_ks_distances_from_data:
                 spec_null = spectra_from_hdf5(hf.get("spectra_high"))
             else:
                 spec_null = spectra_from_hdf5(hf.get("spectra_low"))
-        num_pairs = spec_comp.num_pairs
-        print(num_pairs)
+        distances = (np.arange(params["max_d"] // 3) + 1) * 3
         sample_ks_statistics_save(
             spectra_null = spec_null,
             k_max = params["k_max"],
+            distances = distances,
             folded = wildcards.folded,
             n_reps = int(1e4),
-            num_pairs = num_pairs,
+            num_pairs = spec_orig.num_pairs,
             output_file = output.ks_distance_file,
         )
 

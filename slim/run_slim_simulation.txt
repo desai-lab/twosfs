@@ -1,6 +1,6 @@
 // Script for the SLiM simulations
-// Takes mutation rate, mutation effect size (s), genome length (L),
-// population size (N), and recombination rate as command line arguments
+// Takes mutation rate, mutation effect size (s), population size (N),
+// and recombination rate as command line arguments
 
 
 initialize() {
@@ -19,12 +19,6 @@ initialize() {
 
 1 {
         sim.addSubpop('p1', N); // The diploid population of size N
-}
-
-late() {
-        if (sim.generation % 1000 == 0) {
-                print(sim.generation); // If a simulation fails, gives an estimate how long it ran 
-        }
 }
 
 2e5 late() {

@@ -26,16 +26,9 @@ rule forward_ks_distances_all:
         mem=100,
         time=5,
 
-rule fitted_forward_spectra_all:
-    input:
-        config.fitted_forward_spectra_files()
-    resources:
-        mem=100,
-        time=5,
-
 rule fitted_forward_demographies_all:
     input:
-        config.fitted_forward_demography_files()
+        list(config.fitted_forward_demography_files())
     resources:
         mem=100,
         time=5,
@@ -46,13 +39,13 @@ rule simulate_tree_file:
     wildcard_constraints:
         rep="\d+",
     resources:
-        mem=2000,
+        mem=5000,
         time=800
     run:
         params=parse_parameter_string(wildcards.params)
         params["genome_length"] = config.slim_parameters["genome_length"]
         params["pop_size"] = config.slim_parameters["pop_size"]
-        os.system( "slim -d \"fname='{}'\" -d mut_rate={} -d s={} -d rec_rate={} -d L={} -d N={} -s {} slim/run_slim_simulation.txt".format(output[0].replace('"','\\\"'), params["mut_rate"], params["s"], params["rec_rate"], int(params["genome_length"]), int(params["pop_size"]), filename2seed(output[0])) )
+        os.system( "slim -d \"fname='{}'\" -d mut_rate={} -d s={} -d rec_rate={} -d N={} -d L={} -s {} slim/run_slim_simulation.txt".format(output[0].replace('"','\\\"'), params["mut_rate"], params["s"], params["rec_rate"], int(params["pop_size"]), int(params["genome_length"]), filename2seed(output[0])) )
 
 
 ruleorder: spectra_from_SLiM > simulate_initial_spectra
@@ -85,10 +78,10 @@ ruleorder: add_runs_from_SLiM > add_runs
 
 rule add_runs_from_SLiM:
     output:
-        "simulations/initial_spectra/model=sel.{params}.rep=all.npz",
+        "simulations/initial_spectra/model=sel.{params}.rep=all.hdf5",
     input:
         expand(
-            "simulations/initial_spectra/model=sel.{params}.rep={rep}.npz",
+            "simulations/initial_spectra/model=sel.{params}.rep={rep}.hdf5",
             rep=range(config.slim_parameters["nruns"]),
             allow_missing=True,
         ),
@@ -111,17 +104,16 @@ rule search_recombination_rate_from_slim:
     wildcard_constraints:
         model = "sel"
     resources:
-        time=30,
+        time=120,
         mem=5000,
     run:
-        params=parse_parameter_string(wildcards.params)
+        params = parse_parameter_string(wildcards.params)
         rng = np.random.default_rng(filename2seed(output[0]))
         raw_spectra = load_spectra(input.spectra_file)
         with open(input.demo_file) as f:
             model_parameters = json.load(f)
-        num_pairs = int(wildcards.pair_density) * degenerate_pairs(
-            raw_spectra, int(wildcards.sequence_length)
-        )
+        num_pairs = np.zeros(len(raw_spectra.windows)-1)
+        num_pairs[0:int(wildcards.sequence_length)] = int(wildcards.pair_density)
         spectra_samp = sample_spectra(raw_spectra, num_pairs=num_pairs, rng=rng)
         sim_kwargs = dict(
             model="pwc",
@@ -135,46 +127,17 @@ rule search_recombination_rate_from_slim:
             ),
             random_seed=rng,
         )
+        distances = (np.arange(int(wildcards.sequence_length) // 3) + 1) * 3
         search_recombination_rates_save(
             output[0],
             spectra_samp,
             config.k_max,
+            distances,
             wildcards.folded == "True",
             sim_kwargs,
-            params["rec_rate"] * config.slim_parameters["search_r_low"] * spectra_samp.tajimas_pi(),
-            params["rec_rate"] * config.slim_parameters["search_r_high"]* spectra_samp.tajimas_pi(),
-            config.search_iters,
+            config.slim_parameters["search_r_low"] * spectra_samp.scaled_recombination_rate(),
+            config.slim_parameters["search_r_high"] * spectra_samp.scaled_recombination_rate(),
+            config.search_iters
         )
 
 
-rule simulate_fitted_spectra_from_SLiM:
-    input:
-        search_file=config.recombination_search_file,
-        demo_file=config.fitted_demography_file,
-    output:
-        temp(config.fitted_spectra_file),
-    wildcard_constraints:
-        model="sel",
-        rep="\d+",
-    resources:
-        time=20,
-        mem=1000,
-    run:
-        rng = np.random.default_rng(filename2seed(output[0]))
-        with h5py.File(input.search_file) as f:
-            attrs_h = dict(f.get("spectra_high").attrs)
-            attrs_l = dict(f.get("spectra_low").attrs)
-        if attrs_h["ks_distance"] < attrs_l["ks_distance"]:
-            r = attrs_h["recombination_rate"]
-        else:
-           r = attrs_l["recombination_rate"]
-        with open(input.demo_file, "r") as f:
-            model_parameters = json.load(f)
-        spectra = simulate_spectra(
-            model="pwc",
-            model_parameters=model_parameters,
-            msprime_parameters=config.msprime_parameters,
-            scaled_recombination_rate=r,
-            random_seed=filename2seed(output[0]),
-        )
-        spectra.save(output[0])
