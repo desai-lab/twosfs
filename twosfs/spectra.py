@@ -356,7 +356,7 @@ def spectra_from_sites(
     allele_count_dict: dict[int, Union[int, list[int, int, list[str]]]],
     imputation: str = "probabilistic",
     polyallelic: str = "ignore",
-    min_samp_frac: float = 0.95,
+    min_samp_frac: float = 0.90,
 ) -> Spectra:
     """Create a Spectra from a dictionary of allele counts and positions.
 
@@ -387,7 +387,9 @@ def spectra_from_sites(
 
     if type(list(allele_count_dict.items())[0][1]) is list:
         allele_count_dict_new = {}
+        # position, (alternate count, null count, nucleotides)
         for pos, (ac, nc, nts) in allele_count_dict.items():
+            # Ignore the site if it is polyallelic or the minimum sample threshold is not met
             if (len(nts) > 1 and polyallelic == "ignore") or num_samples - nc < min_samps:
                 pass
             elif ac > 0:

@@ -48,7 +48,6 @@ rule spectra_from_sites:
             recombination_rate = params["recombination_rate"],
             allele_count_dict = sites
         )
-        print(spec.num_pairs)
         spec.save(output.spec_file)
 
 
