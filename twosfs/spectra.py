@@ -1,7 +1,7 @@
 """Class and functions for manipulating SFS and 2SFS."""
 from collections.abc import Iterable
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import attr
 import attr.validators as v
@@ -62,7 +62,7 @@ def _last_dims_square(instance, attribute, value):
 def _zero_if_num_sites(instance, attribute, value):
     if instance.num_sites == 0 and np.any(value > 0):
         raise ValueError(
-            f"If num_sites == 0, {attribute.name} must only contain zeros."
+            "If num_sites == 0, {attribute.name} must only contain zeros."
         )
 
 
@@ -204,6 +204,10 @@ class Spectra(object):
         """Return the Tajima's pi (average pairwise diversity)."""
         return tajimas_pi(self.onesfs / self.num_sites)
 
+    def tajimas_d(self) -> float:
+        """Return Tajima's D"""
+        return tajimas_d(self.onesfs / self.num_sites)
+
     def scaled_recombination_rate(self) -> float:
         """Return pi * r (or 2 * E[T_2] * r)."""
         return self.tajimas_pi() * self.recombination_rate
@@ -325,7 +329,7 @@ def zero_spectra_like(spectra: Spectra) -> Spectra:
 
 
 def spectra_from_TreeSequence(
-    windows, recombination_rate: float, tseq: tskit.TreeSequence
+    windows, recombination_rate: float, tseq: tskit.TreeSequence,
 ) -> Spectra:
     """Construct a Spectra object from a tskit.TreeSeqeunce."""
     num_samples = tseq.sample_size
@@ -336,6 +340,10 @@ def spectra_from_TreeSequence(
     )
     onesfs = np.sum(afs, axis=0)
     twosfs = afs[0, :, None] * afs[:, None, :]
+    twosfs += twosfs.transpose([0, 2, 1])
+    for i in range(twosfs.shape[1]):
+        twosfs[:,i,i] /= 2
+    twosfs = np.triu(twosfs)
     return Spectra(
         num_samples, windows, recombination_rate, num_sites, num_pairs, onesfs, twosfs
     )
@@ -345,7 +353,10 @@ def spectra_from_sites(
     num_samples: int,
     windows: np.ndarray,
     recombination_rate: float,
-    allele_count_dict: dict[int, int],
+    allele_count_dict: dict[int, Union[int, list[int, int, list[str]]]],
+    imputation: str = "probabilistic",
+    polyallelic: str = "ignore",
+    min_samp_frac: float = 0.90,
 ) -> Spectra:
     """Create a Spectra from a dictionary of allele counts and positions.
 
@@ -358,7 +369,10 @@ def spectra_from_sites(
     recombination_rate : float
        The per-site recombination rate.
     allele_count_dict : Dict[int, int]
-        A dictionary of `position: allele_count` pairs
+        A dictionary of `position: allele_count` pairs or
+        a dictionary of `position: [allele_count, unknown_count, alternate_alleles]` pairs
+    min_samp_frac: float
+        The minimum fraction of sampled genotypes for a site to be included
 
     Returns
     -------
@@ -369,18 +383,36 @@ def spectra_from_sites(
     twosfs = np.zeros((len(windows) - 1, num_samples + 1, num_samples + 1))
     num_sites = 0
     num_pairs = np.zeros(len(windows) - 1)
+    min_samps = min_samp_frac * num_samples
+
+    if type(list(allele_count_dict.items())[0][1]) is list:
+        allele_count_dict_new = {}
+        # position, (alternate count, null count, nucleotides)
+        for pos, (ac, nc, nts) in allele_count_dict.items():
+            # Ignore the site if it is polyallelic or the minimum sample threshold is not met
+            if (len(nts) > 1 and polyallelic == "ignore") or num_samples - nc < min_samps:
+                pass
+            elif ac > 0:
+                if nc > 0 and imputation == "probabilistic":
+                    p = ac / (num_samples - nc)
+                    ac += np.random.binomial(nc, p)
+                allele_count_dict_new[pos] = ac
+        allele_count_dict = allele_count_dict_new
+
     for pos, ac1 in allele_count_dict.items():
         num_sites += 1
         onesfs[ac1] += 1
         for i, dist in enumerate(windows[:-1]):
             for d in range(dist, windows[i + 1]):
                 try:
-                    ac2 = allele_count_dict[pos + d]
+                    ac2 = allele_count_dict[str(int(pos) + d)]
                 except KeyError:
                     continue
                 num_pairs[i] += 1
                 twosfs[i, ac1, ac2] += 1
-                twosfs[i, ac2, ac1] += 1
+                if ac1 != ac2:
+                    twosfs[i, ac2, ac1] += 1
+    twosfs = np.triu(twosfs)
     return Spectra(
         num_samples, windows, recombination_rate, num_sites, num_pairs, onesfs, twosfs
     )
@@ -406,8 +438,11 @@ def foldtwosfs(twosfs: np.ndarray) -> np.ndarray:
     folded[:, :-n_fold, :n_fold] += twosfs[:, :-n_fold, : -(n_fold + 1) : -1]
     folded[:, :n_fold, :-n_fold] += twosfs[:, : -(n_fold + 1) : -1, :-n_fold]
     folded[:, :n_fold, :n_fold] += twosfs[:, : -(n_fold + 1) : -1, : -(n_fold + 1) : -1]
+    folded += folded.transpose([0, 2, 1])
+    for i in range(folded.shape[-1]):
+        folded[:,i,i] /= 2
+    folded = np.triu(folded)
     return folded
-
 
 def lump_onesfs(onesfs: np.ndarray, k_max: int) -> np.ndarray:
     """Lump all sfs bins for k>=k_max into one bin."""
@@ -433,3 +468,18 @@ def tajimas_pi(onesfs: np.ndarray) -> float:
     k = np.arange(n + 1)
     weights = 2 * k * (n - k) / (n * (n - 1))
     return np.dot(onesfs, weights)
+
+
+def theta_S(onesfs: np.ndarray) -> float:
+    """Compute the expected pairwise diversity, theta_S."""
+    n = len(onesfs) - 1
+    k = np.arange(n+1)
+    weights = k[1:] * (1/k[1:]) / sum(1/k[1:])
+    return np.dot(onesfs[1:], weights)
+
+
+def tajimas_d(onesfs: np.ndarray) -> float:
+    """Compute Tajima's D from an SFS."""
+    th_S = theta_S(onesfs)
+    th_pi = tajimas_pi(onesfs)
+    return (th_pi - th_S) / th_pi

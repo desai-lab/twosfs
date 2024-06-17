@@ -13,6 +13,7 @@ from twosfs.spectra import Spectra, lump_twosfs, spectra_to_hdf5
 def search_recombination_rates(
     spectra: Spectra,
     k_max: int,
+    distances: np.ndarray,
     folded: bool,
     sim_kwargs: dict,
     r_low: float,
@@ -21,7 +22,7 @@ def search_recombination_rates(
 ) -> tuple[tuple[float, float, Spectra], tuple[float, float, Spectra]]:
     """Use golden section search to find the r that minimizes ks distance."""
     (r_l, r_u), ((ks_l, spec_l), (ks_u, spec_u)) = golden_section_search(
-        simulate_ks, r_low, r_high, num_iters, spectra, k_max, folded, **sim_kwargs
+        simulate_ks, r_low, r_high, num_iters, spectra, k_max, distances, folded, **sim_kwargs
     )
     return (r_l, ks_l, spec_l), (r_u, ks_u, spec_u)
 
@@ -30,6 +31,7 @@ def search_recombination_rates_save(
     output_file,
     spectra: Spectra,
     k_max: int,
+    distances: np.ndarray,
     folded: bool,
     sim_kwargs: dict,
     r_low: float,
@@ -42,8 +44,9 @@ def search_recombination_rates_save(
     Save output to a file in hdf5 format.
     """
     (r_l, ks_l, spec_l), (r_h, ks_h, spec_h) = search_recombination_rates(
-        spectra, k_max, folded, sim_kwargs, r_low, r_high, num_iters
+        spectra, k_max, distances, folded, sim_kwargs, r_low, r_high, num_iters
     )
+    
     with h5py.File(output_file, "w") as f:
         spectra_to_hdf5(
             spectra,
@@ -65,17 +68,17 @@ def search_recombination_rates_save(
 
 
 def simulate_ks(
-    r: float, spectra: Spectra, k_max: int, folded: bool, **simulation_kwargs
+    r: float, spectra: Spectra, k_max: int, distances: np.ndarray, folded: bool, **simulation_kwargs
 ) -> tuple[float, Spectra]:
     """Simulate a Spectra and compute its KS distance to the supplied Spectra."""
     spectra_sim = simulate_spectra(scaled_recombination_rate=r, **simulation_kwargs)
-    twosfs_orig = reweight_and_symmetrize(
-        twosfs_pdf(spectra, k_max, folded)[: len(spectra_sim.num_pairs)],
-        spectra.num_pairs,
+    twosfs_orig = reweight(
+        twosfs_pdf(spectra, k_max, folded)[: len(spectra_sim.num_pairs)][distances],
+        spectra.num_pairs[distances],
     )
-    twosfs_sim = reweight_and_symmetrize(
-        twosfs_pdf(spectra_sim, k_max, folded),
-        spectra.num_pairs,
+    twosfs_sim = reweight(
+        twosfs_pdf(spectra_sim, k_max, folded)[distances],
+        spectra.num_pairs[distances],
     )
     return max_ks_distance(twosfs_orig, twosfs_sim), spectra_sim
 
@@ -189,7 +192,7 @@ def symmetrize(pdf: np.ndarray) -> np.ndarray:
 def twosfs_pdf(spectra: Spectra, k_max: int, folded: bool) -> np.ndarray:
     """Get the twosfs for segregating sites as a normalized 2D pdf."""
     ret = lump_twosfs(spectra.normalized_twosfs(folded=folded), k_max)[:, 1:, 1:]
-    return ret / np.sum(ret)
+    return ret / np.sum(ret, axis = (1, 2))[:,None,None]
 
 
 def resample_marginal_pdfs(pdfs: np.ndarray, n_obs: Iterable[int]) -> np.ndarray:
@@ -201,6 +204,11 @@ def reweight_and_symmetrize(pdf: np.ndarray, weights: Iterable[float]) -> np.nda
     """Reweight 3D pdf along first dimension by weights and symmetrize."""
     ret = np.array([symmetrize(p) * w for p, w in zip(pdf, weights)])
     return ret / np.sum(ret)
+
+
+def reweight(pdf: np.ndarray, weights: Iterable[float]) -> np.ndarray:
+    """Reweight already symmetric 3D pdf along first dimension by weights"""
+    return np.array([p * w for p, w in zip(pdf, weights)])
 
 
 def degenerate_pairs(spectra: Spectra, max_distance: int) -> np.ndarray:
@@ -215,26 +223,48 @@ def sample_ks_statistics(
     spectra_comp: Spectra,
     spectra_null: Spectra,
     k_max: int,
+    distances: np.ndarray,
     folded: bool,
     n_reps: int,
     num_pairs: np.ndarray,
 ) -> np.ndarray:
     """Sample 2-SFS KS statistics between spectra_comp and spectra_null."""
-    nonzero = num_pairs > 0
-    np_nz = num_pairs[nonzero]
-    twosfs_comp = reweight_and_symmetrize(
-        twosfs_pdf(spectra_comp, k_max, folded)[nonzero], np_nz
+    twosfs_comp = reweight(
+        twosfs_pdf(spectra_comp, k_max, folded)[distances], num_pairs[distances]
     )
-    twosfs_null = reweight_and_symmetrize(
-        twosfs_pdf(spectra_null, k_max, folded)[nonzero], np_nz
+    twosfs_null = reweight(
+        twosfs_pdf(spectra_null, k_max, folded)[distances], num_pairs[distances]
     )
     ks_values = np.zeros(n_reps)
     for i in range(n_reps):
-        resampled = reweight_and_symmetrize(
-            resample_marginal_pdfs(twosfs_comp, np_nz), np_nz
+        resampled = reweight(
+            resample_marginal_pdfs(twosfs_comp, num_pairs[distances]), num_pairs[distances]
         )
         ks_values[i] = max_ks_distance(resampled, twosfs_null)
-    return ks_values * np.sqrt(sum(np_nz))
+    return ks_values # * np.sqrt(sum(np_nz))
+
+
+def sample_ks_statistics_save(
+    spectra_null: Spectra,
+    k_max: int,
+    distances: np.ndarray,
+    folded: bool,
+    n_reps: int,
+    num_pairs: np.ndarray,
+    output_file,
+) -> np.ndarray:
+    """Save sampled 2-SFS KS statistics from spectra_comp and spectra_null."""
+    ks_null = sample_ks_statistics(
+        spectra_null,
+        spectra_null,
+        k_max,
+        distances,
+        folded,
+        n_reps,
+        num_pairs,
+    )
+    with h5py.File(output_file, "w") as hf:
+        data_null = hf.create_dataset("ks_null", data = ks_null)
 
 
 def _axis_combinations(n_dims: int) -> list[tuple]:
@@ -271,7 +301,10 @@ def scan_parameters(
     """Compute resampled KS stats scanning over pair densities and max distances."""
     for pd in pair_densities:
         for md in max_distances:
-            num_pairs = pd * degenerate_pairs(spectra_comp, md)
+            # num_pairs = pd * degenerate_pairs(spectra_comp, md)
+            nonzero_dist = np.zeros(25)
+            nonzero_dist[2:] = 1
+            num_pairs = pd * nonzero_dist
             ks = sample_ks_statistics(
                 spectra_comp, spectra_null, k_max, folded, n_reps, num_pairs
             )
