@@ -11,7 +11,7 @@ initialize() {
 	else {
 	        initializeMutationRate(mut_rate);
 	}
-        initializeMutationType('m1', 1.0, 'f', s);
+        initializeMutationType('m1', 0.5, 'f', s);
         initializeGenomicElementType('g1', m1, 1.0);
         initializeGenomicElement(g1, 0, L-1);
         initializeRecombinationRate(rec_rate);
