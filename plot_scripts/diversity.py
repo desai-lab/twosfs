@@ -3,7 +3,7 @@ import json
 
 site_file = "../dros_data/{}/{}_4D_all_sites.json"
 save_path = "figures/"
-save_name = save_paty + "diversity.pdf"
+save_name = save_path + "diversity.pdf"
 
 chroms = ["Chr2L", "Chr2R", "Chr3L", "Chr3R"]
 chroms = ["Chr2L"]
