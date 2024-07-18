@@ -8,9 +8,9 @@ import json
 import matplotlib.ticker as mticker
 from matplotlib.lines import Line2D
 import matplotlib.gridspec as gridspec
-from matplotlib import patches
+from matplotlib import patches, lines
 
-config = configuration_from_json("../../simulation_parameters.json")
+config = configuration_from_json("../simulation_parameters.json")
 save_path = "figures/"
 
 beta_params = '"alpha":{}'
@@ -70,8 +70,7 @@ two_beta = spec_beta.normalized_twosfs(folded=True, k_max=20)[:,1:,1:]
 with h5py.File(ks_file.format(*params)) as hf:
     ks = np.array(hf.get("ks_null"))
 
-pd = np.zeros(25)
-pd += 100000
+pd = np.full(25, 100000)
 spec_resamp = sample_spectra(spec_growth, 1, pd, False)
 two_resamp1 = spec_resamp.normalized_twosfs(folded=True, k_max=20)[:,1:,1:]
 spec_resamp = sample_spectra(spec_growth, 1, pd, False)
@@ -98,13 +97,18 @@ axs[2] = plt.Subplot(fig, inner[0])
 
 inner = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=outer[3], wspace=0.1, hspace=0.4)
 raxs = [plt.Subplot(fig, inner[i]) for i in range(4)]
-axs[3].axis("off")
+for side in ["top", "bottom", "left", "right"]:
+    axs[3].spines[side].set_visible(False)
+axs[3].set_xticks([])
+axs[3].set_yticks([])
 
-d = 0.02
+d = 0.03
 lower_subplot(raxs[0], d, d)
 lower_subplot(raxs[1], d, d)
 lower_subplot(raxs[2], 0, d)
 lower_subplot(raxs[3], 0, d)
+
+lower_subplot(saxs[1], d, d)
 
 inner = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=outer[5], wspace=0.1, hspace=0.4)
 paxs = [plt.Subplot(fig, inner[i]) for i in range(4)]
@@ -172,23 +176,27 @@ axs[0].set_title("Collect data", fontsize=7)
 # Construct SFS
 saxs[0].loglog(np.arange(19) + 1, np.array(beta_data["sfs_obs"])[:-1], ".", color="k", ms=5)
 saxs[0].set_title("Construct the SFS", fontsize=7)
+saxs[0].set_xlabel("Site freq.", fontsize=6)
+saxs[0].set_ylabel("Frac. of sites", fontsize=6)
 saxs[1].pcolormesh( np.log2(two_beta[0,:-1,:-1]), cmap="Purples")
 saxs[1].set_title("Construct the 2-SFS", fontsize=7)
+saxs[1].set_xlabel("Freq. site 1", fontsize=6)
+saxs[1].set_ylabel("Freq. site 2", fontsize=6)
 
-# Fit demography
+# Fit a Kingman demography
 y, t = demo_to_plot(beta_data["sizes"], beta_data["times"])
 axs[2].loglog(t, y, color="k")
 axs[2].set_xticks([])
 axs[2].set_yticks([])
-axs[2].set_xlabel("Time in past", fontsize=7)
-axs[2].set_ylabel("Pop. size", fontsize=7)
+axs[2].set_xlabel("Time in past", fontsize=6)
+axs[2].set_ylabel("Pop. size", fontsize=6)
 axs[2].set_title("Fit a Kingman demography", fontsize=7)
 
-# Rec 2SFSs
-raxs[0].pcolormesh( np.log2(two_beta[5] / two_growth[2]), vmin = -0.5, vmax = 0.5, cmap = "PuOr_r")
-raxs[1].pcolormesh( np.log2(two_beta[5] / two_growth[5]), vmin = -0.5, vmax = 0.5, cmap = "PuOr_r")
-raxs[2].pcolormesh( np.log2(two_beta[5] / two_growth[9]), vmin = -0.5, vmax = 0.5, cmap = "PuOr_r")
-raxs[3].pcolormesh( np.log2(two_beta[5] / two_growth[16]), vmin = -0.5, vmax = 0.5, cmap = "PuOr_r")
+# Simulate several rec. rates
+raxs[0].pcolormesh( np.log2(two_growth[2,:-1,:-1]), cmap="Purples")
+raxs[1].pcolormesh( np.log2(two_growth[5,:-1,:-1]), cmap="Purples")
+raxs[2].pcolormesh( np.log2(two_growth[9,:-1,:-1]), cmap="Purples")
+raxs[3].pcolormesh( np.log2(two_growth[16,:-1,:-1]), cmap="Purples")
 raxs[0].set_title(r"$\varphi_{i,j}(r = 0.15)$", fontsize=6)
 raxs[1].set_title(r"$\varphi_{i,j}(r = 0.16)$", fontsize=6)
 raxs[2].set_title(r"$\varphi_{i,j}(r = 0.17)$", fontsize=6)
@@ -197,7 +205,7 @@ axs[3].set_title("Simulate several rec. rates", fontsize=7)
 axs[3].set_xlabel("Frequency site 1", fontsize=7)
 axs[3].set_ylabel("Frequency site 2", fontsize=7)
 
-# KS distance
+# Measure KS distance
 X = np.arange(1, 21)
 cdf_beta = np.cumsum(np.cumsum(two_beta[0], axis=0), axis=1)[0]
 cdf_growth = np.cumsum(np.cumsum(two_resamp1[20], axis=0), axis=1)[0]
@@ -222,7 +230,7 @@ axs[4].legend(fontsize=6)
 axs[4].set_xticks([0, 10, 20])
 axs[4].set_title("Measure KS distances", fontsize=7)
 
-# Rec search
+# Choose rec. rate that minimizes KS distance
 axs[5].plot([0.14, 0.15, 0.16, 0.17, 0.18], [1215, 864, 597, 796, 1052], ".", color="k")
 axs[5].set_xlabel("Recombination rate", fontsize=7)
 axs[5].set_ylabel("KS distance", fontsize=7)
@@ -230,7 +238,7 @@ axs[5].text(0.35, 0.2, r"$\hat{r}$", fontsize=6, transform = axs[5].transAxes, c
 axs[5].arrow(0.37, 0.18, 0.10, -0.09, color=c2, transform=axs[5].transAxes)
 axs[5].set_title("Choose rec. rate that\nminimizes KS distance", fontsize=7)
 
-# Resample for power
+# Resample the 2-SFS
 paxs[0].pcolormesh( np.log2(two_resamp1[0] / two_growth[0]), vmin = -0.5, vmax = 0.5, cmap = "PuOr_r")
 paxs[1].pcolormesh( np.log2(two_resamp2[0] / two_growth[0]), vmin = -0.5, vmax = 0.5, cmap = "PuOr_r")
 paxs[2].pcolormesh( np.log2(two_resamp3[0] / two_growth[0]), vmin = -0.5, vmax = 0.5, cmap = "PuOr_r")
@@ -241,7 +249,7 @@ paxs[2].set_title(r"$\varphi_{ij}^{resamp;3}$", fontsize=6)
 paxs[3].set_title(r"$\varphi_{ij}^{resamp;4}$", fontsize=6)
 axs[6].set_title("Resample the 2-SFS", fontsize=7)
 
-# Null distribution
+# Generate null KS dist. and p-value
 p = round(sum((ks > ks_d) / len(ks)), 3)
 axs[7].hist(ks, 100, color=c1, label="Null KS distribution")
 axs[7].plot([ks_d], [200], "*", color=c2, label="Data KS value")
@@ -250,7 +258,7 @@ axs[7].set_xlabel("KS distance", fontsize=7)
 axs[7].set_ylabel("Counts", fontsize=7)
 axs[7].set_ylim(0, 470)
 axs[7].text(0.8, 0.55, f"p={p}", fontsize=6, color=c2, transform=axs[7].transAxes, ha="center", va="center")
-axs[7].set_title("Generate null KS\ndist. and p-value", fontsize=7)
+axs[7].set_title("Generate null KS\n" + r"dist. and $p$-value", fontsize=7)
 
 # Format axes
 [ax.tick_params(labelsize=6) for ax in axs]
@@ -287,26 +295,35 @@ def draw_arrow(ax1, ax2, direc, buff1=0.01, buff2=0.01):
                     linewidth=0.5, mutation_scale=12)
     fig.patches.append(arrow)
 
-draw_arrow(axs[0], saxs[0], "lr")
-draw_arrow(axs[0], saxs[1], "lr")
+draw_arrow(axs[0], saxs[0], "lr", 0.01, 0.037)
+draw_arrow(axs[0], saxs[1], "lr", 0.01, 0.037)
 draw_arrow(saxs[0], axs[2], "lr", 0.01, 0.035)
-draw_arrow(saxs[1], raxs[2], "lr")
-draw_arrow(axs[2], axs[3], "lr")
-draw_arrow(axs[3], axs[4], "ud", 0.02, 0.05)
+draw_arrow(axs[2], axs[3], "lr", 0.01, 0.035)
+draw_arrow(axs[3], axs[4], "ud", 0.06, 0.05)
 draw_arrow(axs[4], axs[5], "rl")
 draw_arrow(axs[5], axs[6], "rl", 0.04)
 draw_arrow(axs[6], axs[7], "rl")
 
-"""
-x0 = axs[0].get_position().x1 + 0.01
-x1 = saxs[0].get_position().x0 - 0.01
-y0 = (axs[0].get_position().y1 - axs[0].get_position().y0) / 2 + axs[0].get_position().y0
-y1 = (saxs[1].get_position().y1 - saxs[1].get_position().y0) / 2 + saxs[1].get_position().y0
-arrow = patches.FancyArrowPatch([x0, y0], [x1, y1], transform=fig.transFigure,
-                color="tab:red", arrowstyle="Simple", shrinkA=0, shrinkB=0,
-                linewidth=1, mutation_scale=8)
-fig.patches.append(arrow)
-"""
+# Bendy arrow
+x0 = saxs[1].get_position().x1 + 0.01
+x1 = raxs[2].get_position().x0 - 0.03
+y0 = (saxs[1].get_position().y1 - saxs[1].get_position().y0) / 2 + saxs[1].get_position().y0
+a1 = lines.Line2D([x0, x1], [y0, y0], transform=fig.transFigure, color="tab:red", linewidth=3)
+fig.patches.append(a1)
+
+y1 = 2 * ( axs[3].get_position().y0 - axs[4].get_position().y1 ) / 3 + axs[4].get_position().y1 - 0.01
+a2 = lines.Line2D([x1, x1], [y0, y1], transform=fig.transFigure, color="tab:red", linewidth=3)
+fig.patches.append(a2)
+
+x2 = axs[4].get_position().x0 + 0.05
+a3 = lines.Line2D([x1, x2], [y1, y1], transform=fig.transFigure, color="tab:red", linewidth=3)
+fig.patches.append(a3)
+
+y2 = axs[4].get_position().y1 + 0.05
+a4 = patches.FancyArrowPatch([x2, y1], [x2, y2], transform=fig.transFigure, 
+             color="tab:red", arrowstyle="Simple", shrinkA=0, shrinkB=0,
+             linewidth=0.5, mutation_scale=12)
+fig.patches.append(a4)
 
 for ax, l in zip(axs, "abcdefgh"):
     ax.text(-0.18, 1.00, l+".", fontweight = "bold", transform = ax.transAxes, fontsize=7)
