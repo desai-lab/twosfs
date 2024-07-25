@@ -289,10 +289,12 @@ class Configuration:
         )
 
 
-def configuration_from_json(config_file: Union[str, bytes, PathLike]):
+def configuration_from_json(config_file: Union[str, bytes, PathLike], root: str = None):
     """Read a configuration from a json file."""
     with open(config_file) as f:
         data = json.load(f)
+    if root is not None:
+        data["simulation_directory"] = root + data["simulation_directory"]
     return Configuration(**data)
 
 
