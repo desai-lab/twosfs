@@ -252,12 +252,12 @@ axs[6].set_title("Resample the 2-SFS", fontsize=7)
 # Generate null KS dist. and p-value
 p = round(sum((ks > ks_d) / len(ks)), 3)
 axs[7].hist(ks, 100, color=c1, label="Null KS distribution")
-axs[7].plot([ks_d], [200], "*", color=c2, label="Data KS value")
+axs[7].plot([ks_d, ks_d], [0, 290], "--", color=c2, label="Data KS value")
 axs[7].legend(fontsize=6)
 axs[7].set_xlabel("KS distance", fontsize=7)
 axs[7].set_ylabel("Counts", fontsize=7)
 axs[7].set_ylim(0, 470)
-axs[7].text(0.8, 0.55, f"p={p}", fontsize=6, color=c2, transform=axs[7].transAxes, ha="center", va="center")
+axs[7].text(0.8, 0.68, f"p={p}", fontsize=6, color=c2, transform=axs[7].transAxes, ha="center", va="center")
 axs[7].set_title("Generate null KS\n" + r"dist. and $p$-value", fontsize=7)
 
 # Format axes
