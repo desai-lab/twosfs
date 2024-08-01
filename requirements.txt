@@ -6,5 +6,4 @@ jupyterlab~=3.0
 nodejs
 numpy~=1.21.1
 scipy~=1.7.0
--e git://github.com/dp-rice/fitsfs@v0.0.4-alpha#egg=fitsfs
 -e .
