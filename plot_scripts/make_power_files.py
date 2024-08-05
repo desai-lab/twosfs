@@ -21,13 +21,13 @@ with open(save_file, "w") as sf:
 for model in config.iter_models():
     p = get_power(model[0], model[1], True, pd, sl)
     with open(save_file, "a") as sf:
-        sf.write(model[0] + ", " + make_parameter_string(model[1]) + "\t" + str(p))
+        sf.write(model[0] + ", " + make_parameter_string(model[1]) + "\t" + str(p) + "\n")
 
 # Calculate and write power for the forwards-time models
 for model in config.iter_forward_models():
     p = get_power(model[0], model[1], True, pd, sl)
     with open(save_file, "a") as sf:
-        sf.write(model[0] + ", " + make_parameter_string(model[1]) + "\t" + str(p))
+        sf.write(model[0] + ", " + make_parameter_string(model[1]) + "\t" + str(p) + "\n")
 
 """
 ### Beta coalescent ###
