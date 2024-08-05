@@ -1,6 +1,6 @@
 import numpy as np
 import h5py
-from twosfs.config import configuration_from_json
+from twosfs.config import configuration_from_json, make_parameter_string
 
 config = configuration_from_json("../simulation_parameters.json", root = "../")
 
@@ -30,10 +30,15 @@ def get_p_value(rec_search_file, ks_distance_file):
     return p
 
 def get_power(model, params, folded, pair_density, sequence_length, reps=config.power_reps):
+    """
+    Calculates the power to reject Kingman coalescence from a simulated model
+    """
     p_vals = []
-    if type(params) == "dict":
+    # Convert the parameter dictionary to a string
+    if type(params) == dict:
         params = make_parameter_string(params)
     for rep in range(reps):
+        # Format the relevant files
         rec_search_file = config.recombination_search_file.format(model=model,
                                                                   params=params,
                                                                   folded=folded,
@@ -50,4 +55,5 @@ def get_power(model, params, folded, pair_density, sequence_length, reps=config.
                                                          )
         p_vals.append(get_p_value(rec_search_file, ks_distance_file))
 
-    return sum(0.05 > np.array(p_vals)) / reps
+    # Power (at p=0.05) is the fraction of reps with p-value less than 0.05
+    return sum(np.array(p_vals) < 0.05) / reps
