@@ -24,9 +24,10 @@ params = {"model": "const",
           "power_rep": 0,
           "folded": True,
           "rep": "all"}
+
 # First load the null 2-SFS for the constant model and save it as const_null
 with h5py.File(config.recombination_search_file.format(**params)) as hf:
-    if dict(hf.get("spectra_high").attrs)["ks_distance"] < dict(hf.get("spectra_low").attrs)["ks_distance"]:
+    if hf.get("spectra_high").attrs["ks_distance"] < hf.get("spectra_low").attrs["ks_distance"]:
         spec = spectra_from_hdf5(hf.get("spectra_high"))
         const_null = spec.normalized_twosfs(folded=True, k_max=20)[0,1:,1:]
     else:
@@ -41,7 +42,7 @@ params["model"] = "beta"
 params["params"] = make_parameter_string(beta_params)
 # Load the null 2-SFS for the beta coalescent
 with h5py.File(config.recombination_search_file.format(**params)) as hf:
-    if dict(hf.get("spectra_high").attrs)["ks_distance"] < dict(hf.get("spectra_low").attrs)["ks_distance"]:
+    if hf.get("spectra_high").attrs["ks_distance"] < hf.get("spectra_low").attrs["ks_distance"]:
         spec = spectra_from_hdf5(hf.get("spectra_high"))
         beta_null = spec.normalized_twosfs(folded=True, k_max=20)[0,1:,1:]
     else:
@@ -55,7 +56,7 @@ beta_data = spec.normalized_twosfs(folded=True, k_max=20)[0,1:,1:]
 params["model"] = "sel"
 params["params"] = make_parameter_string(sel_params)
 with h5py.File(config.recombination_search_file.format(**params)) as hf:
-    if dict(hf.get("spectra_high").attrs)["ks_distance"] < dict(hf.get("spectra_low").attrs)["ks_distance"]:
+    if hf.get("spectra_high").attrs["ks_distance"] < hf.get("spectra_low").attrs["ks_distance"]:
         spec = spectra_from_hdf5(hf.get("spectra_high"))
         sel_null = spec.normalized_twosfs(folded=True, k_max=20)[0,1:,1:]
     else:
@@ -68,7 +69,7 @@ sel_data = spec.normalized_twosfs(folded=True, k_max=20)[0,1:,1:]
 params["model"] = "exp"
 params["params"] = make_parameter_string(exp_params)
 with h5py.File(config.recombination_search_file.format(**params)) as hf:
-    if dict(hf.get("spectra_high").attrs)["ks_distance"] < dict(hf.get("spectra_low").attrs)["ks_distance"]:
+    if hf.get("spectra_high").attrs["ks_distance"] < hf.get("spectra_low").attrs["ks_distance"]:
         spec = spectra_from_hdf5(hf.get("spectra_high"))
         exp_null = spec.normalized_twosfs(folded=True, k_max=20)[0,1:,1:]
     else:
@@ -76,7 +77,6 @@ with h5py.File(config.recombination_search_file.format(**params)) as hf:
         exp_null = spec.normalized_twosfs(folded=True, k_max=20)[0,1:,1:]
 spec = load_spectra(config.initial_spectra_file.format(**params))
 exp_data = spec.normalized_twosfs(folded=True, k_max=20)[0,1:,1:]
-
 
 ######## Plotting ########
 
