@@ -3,29 +3,34 @@ import numpy as np
 import matplotlib.pyplot as plt
 from twosfs.spectra import Spectra, spectra_from_hdf5, load_spectra
 from twosfs.config import configuration_from_json, parse_parameter_string, make_parameter_string
+from twosfs.analysis import get_p_value, get_power
 import json
 
-config = configuration_from_json("../simulation_parameters.json")
-reps = 100
+config = configuration_from_json("../simulation_parameters.json", root = "../")
+save_file = "power.txt"
 
-alphas = [1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45, 1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.95, 2.0]
-growth_rates = [0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0]
-end_times = [0.5, 1.0, 2.0]
-mut_rates = [1e-10, 1e-11]
-s_vals = [0, 0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.05, 0.055, 0.06, 0.065, 0.07, 0.075, 0.08]
+# Load the pair density and sequence length
+pd = config.power_pair_densities[0]
+sl = config.power_sequence_lengths[0]
 
-beta_params = '"alpha":{}'
-exp_params = '"end_time":{},"growth_rate":{}'
-sel_params = '"s":{},"rec_rate":1e-05,"mut_rate":{}'
+# Clear the power file and write the header
+with open(save_file, "w") as sf:
+    sf.write("Model\tp-val\n")
 
-demo_file = '../simulations/fitted_demographies/model={}.params={{{}}}.folded=True.txt'
-rec_file = '../simulations/recombination_search/model={}.params={{{}}}.folded=True.pair_density=10000.sequence_length=25.power_rep={}.hdf5'
-sim_file = '../simulations/initial_spectra/model={}.params={{{}}}.rep=all.hdf5'
-ks_file = '../simulations/ks_distances/model={}.params={{{}}}.folded=True.pair_density=10000.sequence_length=25.power_rep={}.hdf5'
+# Calculate and write power for the backwards-time models
+for model in config.iter_models():
+    p = get_power(model[0], model[1], True, pd, sl)
+    with open(save_file, "a") as sf:
+        sf.write(model[0] + ", " + make_parameter_string(model[1]) + "\t" + str(p) + "\n")
 
+# Calculate and write power for the forwards-time models
+for model in config.iter_forward_models():
+    p = get_power(model[0], model[1], True, pd, sl)
+    with open(save_file, "a") as sf:
+        sf.write(model[0] + ", " + make_parameter_string(model[1]) + "\t" + str(p) + "\n")
+
+"""
 ### Beta coalescent ###
-power_beta = []
-tajd_beta = []
 for a in alphas:
     p_vals = []
     if a == 2.0:
@@ -33,14 +38,7 @@ for a in alphas:
     else:
         params = ("beta", beta_params.format(a))
     for rep in range(reps):
-        with h5py.File(rec_file.format(*params, rep)) as hf:
-            ks_h = hf.get("spectra_high").attrs["ks_distance"]
-            ks_l = hf.get("spectra_low").attrs["ks_distance"]
-        with h5py.File(ks_file.format(*params, rep)) as hf:
-            if ks_h > ks_l:
-                p_vals.append(sum( ks_l < np.array(hf.get("ks_null")[:])) / len (hf.get("ks_null")[:]))
-            else:
-                p_vals.append(sum( ks_h < np.array(hf.get("ks_null")[:])) / len (hf.get("ks_null")[:]))
+        p_vals.append(get_p_value(rec_file.format(*params, rep), ks_file.format(*params, rep)))
 
     power_beta.append(sum(0.05 > np.array(p_vals)) / reps)
     tajd_beta.append(load_spectra(sim_file.format(*params)).tajimas_d())
@@ -59,15 +57,7 @@ for mu in mut_rates:
         else:
             params = ("sel", sel_params.format(s, mu))
         for rep in range(reps):
-            with h5py.File(rec_file.format(*params, rep)) as hf:
-                ks_h = hf.get("spectra_high").attrs["ks_distance"]
-                ks_l = hf.get("spectra_low").attrs["ks_distance"]
-            with h5py.File(ks_file.format(*params, rep)) as hf:
-                if ks_h > ks_l:
-                    p_vals.append(sum( ks_l < np.array(hf.get("ks_null")[:])) / len (hf.get("ks_null")[:]))
-                else:
-                    p_vals.append(sum( ks_h < np.array(hf.get("ks_null")[:])) / len (hf.get("ks_null")[:]))
-
+            p_vals.append(get_p_value(rec_file.format(*params, rep), ks_file.format(*params, rep)))
         power_sel.append(sum(0.05 > np.array(p_vals)) / reps)
         tajd_sel.append(load_spectra(sim_file.format(*params)).tajimas_d())
 
@@ -85,18 +75,11 @@ for t in end_times:
         else:
             params = ("exp", exp_params.format(t, g))
         for rep in range(reps):
-            with h5py.File(rec_file.format(*params, rep)) as hf:
-                ks_h = hf.get("spectra_high").attrs["ks_distance"]
-                ks_l = hf.get("spectra_low").attrs["ks_distance"]
-            with h5py.File(ks_file.format(*params, rep)) as hf:
-                if ks_h > ks_l:
-                    p_vals.append(sum( ks_l < np.array(hf.get("ks_null")[:])) / len (hf.get("ks_null")[:]))
-                else:
-                    p_vals.append(sum( ks_h < np.array(hf.get("ks_null")[:])) / len (hf.get("ks_null")[:]))
+            p_vals.append(get_p_value(rec_file.format(*params, rep), ks_file.format(*params, rep)))
 
         power_exp.append(sum(0.05 > np.array(p_vals)) / reps)
         tajd_exp.append(load_spectra(sim_file.format(*params)).tajimas_d())
 
 np.save("power_files/exp_power.npy", power_exp)
 np.save("power_files/exp_tajd.npy", tajd_exp)
-
+"""
