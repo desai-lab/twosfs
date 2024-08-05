@@ -6,8 +6,9 @@ from twosfs.config import configuration_from_json, parse_parameter_string, make_
 import json
 import matplotlib.ticker as mticker
 from matplotlib.lines import Line2D
+from twosfs.analysis import demo_to_plot
 
-config = configuration_from_json("../simulation_parameters.json")
+config = configuration_from_json("../simulation_parameters.json", root = "../")
 save_path = "figures/"
 
 beta_params = '"alpha":{}'
@@ -18,20 +19,6 @@ demo_file = '../simulations/fitted_demographies/model={}.params={{{}}}.folded=Tr
 rec_file = '../simulations/recombination_search/model={}.params={{{}}}.folded=True.pair_density=10000.sequence_length=25.power_rep={}.hdf5'
 sim_file = '../simulations/initial_spectra/model={}.params={{{}}}.rep=all.hdf5'
 ks_file = '../simulations/ks_distances/model={}.params={{{}}}.folded=True.pair_density=10000.sequence_length=25.power_rep={}.hdf5'
-
-def demo_to_plot(sizes, times):
-    t = [0]
-    for time in times:
-        t.append(time)
-        t.append(time)
-    t.append(t[-1] * 10)
-    t = np.array(t) / t[-1]
-    y = []
-    for size in sizes:
-        y.append(size)
-        y.append(size)
-    return y, t
-
 
 ######## Loading ########
 

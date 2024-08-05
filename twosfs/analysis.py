@@ -57,3 +57,24 @@ def get_power(model, params, folded, pair_density, sequence_length, reps=config.
 
     # Power (at p=0.05) is the fraction of reps with p-value less than 0.05
     return sum(np.array(p_vals) < 0.05) / reps
+
+def demo_to_plot(sizes, times):
+    """
+    Takes population sizes and change times as listed in demography files and reformats
+    in a way that leads to stepwise plots. Returns two arrays:
+        t = [0,  t1, t1, t2, t2, t3, t3, ...]
+        y = [y1, y1, y2, y2, y3, y3, y4, ...]
+    """
+    t = [0]
+    for time in times:
+        t.append(time)
+        t.append(time)
+    t.append(t[-1] * 10)
+    t = np.array(t) / t[-1]
+    y = []
+    for size in sizes:
+        y.append(size)
+        y.append(size)
+    return y, t
+
+
