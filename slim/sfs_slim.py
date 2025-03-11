@@ -4,9 +4,10 @@ from twosfs.spectra import Spectra, add_spectra, spectra_from_TreeSequence
 from dataclasses import dataclass, field
 from os import PathLike
 from typing import Any, Iterator, Union, Dict, List
+import tskit
 
 def iterate_tseqs(fname: PathLike, params: dict) -> Iterator:
-    tseq = pyslim.load(fname).simplify()
+    tseq = tskit.load(fname).simplify()
     tseq = tseq.simplify(params["samples"])
     tree_spacing = (1 - 2 * params["genome_cutoff"]) / params["num_trees"]
 

@@ -7,6 +7,7 @@ import json
 
 config = configuration_from_json("../simulation_parameters.json", root = "../")
 save_path = "figures/"
+save_path = "/n/home12/efenton/for_windows/newer_2sfs/paper_updated/"
 
 ######## Parameters in the example plots for each model ########
 beta_params = {"alpha": 1.3}

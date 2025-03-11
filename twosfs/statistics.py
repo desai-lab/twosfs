@@ -19,12 +19,20 @@ def search_recombination_rates(
     r_low: float,
     r_high: float,
     num_iters: int,
+    n_reps: int,
+    pair_density: np.ndarray,
 ) -> tuple[tuple[float, float, Spectra], tuple[float, float, Spectra]]:
-    """Use golden section search to find the r that minimizes ks distance."""
-    (r_l, r_u), ((ks_l, spec_l), (ks_u, spec_u)) = golden_section_search(
-        simulate_ks, r_low, r_high, num_iters, spectra, k_max, distances, folded, **sim_kwargs
+    """Use golden section search to find the r that maximizes the p-value. In reality,
+       we minimize 1 - p, which is equivalent."""
+    # (r_l, r_u), ((ks_l, spec_l), (ks_u, spec_u)) = golden_section_search(
+    #     simulate_ks, r_low, r_high, num_iters, spectra, k_max, distances, folded, **sim_kwargs
+    # )
+    (r_l, r_u), ((p_l, ks_l, ks_dist_l, spec_l), (p_u, ks_u, ks_dist_u, spec_u)) = golden_section_search(
+        simulate_p_value, r_low, r_high, num_iters, spectra, k_max,
+        distances, folded, n_reps, pair_density, **sim_kwargs
     )
-    return (r_l, ks_l, spec_l), (r_u, ks_u, spec_u)
+    # return (r_l, ks_l, spec_l), (r_u, ks_u, spec_u)
+    return (r_l, p_l, ks_l, ks_dist_l, spec_l), (r_u, p_u, ks_u, ks_dist_u, spec_u)
 
 
 def search_recombination_rates_save(
@@ -37,14 +45,16 @@ def search_recombination_rates_save(
     r_low: float,
     r_high: float,
     num_iters: int,
+    n_reps: int,
+    pair_density: np.ndarray,
 ) -> None:
     """
     Use golden section search to find the r that minimizes ks distance.
 
     Save output to a file in hdf5 format.
     """
-    (r_l, ks_l, spec_l), (r_h, ks_h, spec_h) = search_recombination_rates(
-        spectra, k_max, distances, folded, sim_kwargs, r_low, r_high, num_iters
+    (r_l, p_l, ks_l, ks_dist_l, spec_l), (r_h, p_h, ks_h, ks_dist_h, spec_h) = search_recombination_rates(
+        spectra, k_max, distances, folded, sim_kwargs, r_low, r_high, num_iters, n_reps, pair_density,
     )
     
     with h5py.File(output_file, "w") as f:
@@ -57,14 +67,31 @@ def search_recombination_rates_save(
             spec_l,
             f,
             "spectra_low",
-            attrs={"recombination_rate": r_l, "ks_distance": ks_l},
+            attrs={"recombination_rate": r_l, "p_value": 1 - p_l, "ks_distance": ks_l},
         )
         spectra_to_hdf5(
             spec_h,
             f,
             "spectra_high",
-            attrs={"recombination_rate": r_h, "ks_distance": ks_h},
+            attrs={"recombination_rate": r_h, "p_value": 1 - p_h, "ks_distance": ks_h},
         )
+    if (p_l, ks_l) > (p_h, ks_h):
+        return r_h, 1 - p_h, ks_h, ks_dist_h, "high"
+    else:
+        return r_l, 1 - p_l, ks_l, ks_dist_l, "low"
+
+
+def simulate_p_value(
+    r: float, spectra: Spectra, k_max: int, distances: np.ndarray, folded: bool, n_reps: int, 
+    num_pairs: np.ndarray, **simulation_kwargs
+) -> tuple[float, Spectra]:
+    """Simulate a Spectra and compute the p-value its 2-SFS came from the supplied Spectra."""
+    ks, spectra_sim = simulate_ks(r, spectra, k_max, distances, folded, **simulation_kwargs)
+    print(num_pairs)
+    print(distances)
+    ks_values = sample_ks_statistics(spectra_sim, spectra_sim, k_max, distances, folded, n_reps, num_pairs)
+    p_value = 1 - sum(ks < ks_values) / n_reps
+    return p_value, ks, ks_values, spectra_sim
 
 
 def simulate_ks(
@@ -72,14 +99,32 @@ def simulate_ks(
 ) -> tuple[float, Spectra]:
     """Simulate a Spectra and compute its KS distance to the supplied Spectra."""
     spectra_sim = simulate_spectra(scaled_recombination_rate=r, **simulation_kwargs)
+    print("simulate ks")
+    for i in range(5):
+        print(np.round(spectra.twosfs[i, 1:5, 1:5],3))
+        print(np.sum(spectra.twosfs[i]))
     twosfs_orig = reweight(
         twosfs_pdf(spectra, k_max, folded)[: len(spectra_sim.num_pairs)][distances],
         spectra.num_pairs[distances],
     )
+    """
+    print(distances)
+    print("orig")
+    for i in range(6):
+        print(np.round(twosfs_orig[i, :4, :4], 3))
+        print(np.sum(twosfs_orig[i]))\
+    """
     twosfs_sim = reweight(
         twosfs_pdf(spectra_sim, k_max, folded)[distances],
         spectra.num_pairs[distances],
     )
+    """
+    print()
+    print("sim")
+    for i in range(6):
+        print(np.round(twosfs_sim[i, :4, :4], 3))
+        print(np.sum(twosfs_orig[i]))
+    """
     return max_ks_distance(twosfs_orig, twosfs_sim), spectra_sim
 
 
@@ -146,6 +191,7 @@ def golden_section_search(
     x_u = a + (b - a) * lamb
     f_u = f(x_u, *args, **kwargs)
     for i in range(num_iters):
+        # if f_l[0] >= f_u[0]:
         if f_l <= f_u:
             b = x_u
             x_u = x_l
@@ -160,6 +206,12 @@ def golden_section_search(
             f_u = f(x_u, *args, **kwargs)
     return (x_l, x_u), (f_l, f_u)
 
+
+def noise_spectra(spec, noise_level):
+    """Add sequencing noise to a spectra object"""
+    spec.onesfs[1] = spec.onesfs[1] * (1+noise_level)
+    spec.twosfs[1,:] = spec.twosfs[1,:] * (1+noise_level)
+    return spec
 
 def ks_distance(cdf1: np.ndarray, cdf2: np.ndarray) -> float:
     """Compute the KS distance between two CDFs."""
@@ -237,11 +289,13 @@ def sample_ks_statistics(
     )
     ks_values = np.zeros(n_reps)
     for i in range(n_reps):
+        if i == 0:
+            print(num_pairs)
         resampled = reweight(
             resample_marginal_pdfs(twosfs_comp, num_pairs[distances]), num_pairs[distances]
         )
         ks_values[i] = max_ks_distance(resampled, twosfs_null)
-    return ks_values # * np.sqrt(sum(np_nz))
+    return ks_values
 
 
 def sample_ks_statistics_save(

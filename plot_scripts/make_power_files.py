@@ -15,19 +15,25 @@ sl = config.power_sequence_lengths[0]
 
 # Clear the power file and write the header
 with open(save_file, "w") as sf:
-    sf.write("Model\tp-val\n")
+    sf.write("Model\tp-val\tTajima's D\n")
 
 # Calculate and write power for the backwards-time models
 for model in config.iter_models():
     p = get_power(model[0], model[1], True, pd, sl)
+    t_d = load_spectra(
+                config.initial_spectra_file.format(model=model[0],
+                params=make_parameter_string(model[1]), rep="all")).tajimas_d()
     with open(save_file, "a") as sf:
-        sf.write(model[0] + ", " + make_parameter_string(model[1]) + "\t" + str(p) + "\n")
+        sf.write(f"{model[0]}, {make_parameter_string(model[1])}\t{p}\t{t_d}\n")
 
 # Calculate and write power for the forwards-time models
 for model in config.iter_forward_models():
     p = get_power(model[0], model[1], True, pd, sl)
+    t_d = load_spectra(
+                config.initial_spectra_file.format(model=model[0],
+                params=make_parameter_string(model[1]), rep="all")).tajimas_d()
     with open(save_file, "a") as sf:
-        sf.write(model[0] + ", " + make_parameter_string(model[1]) + "\t" + str(p) + "\n")
+        sf.write(f"{model[0]}, {make_parameter_string(model[1])}\t{p}\t{t_d}\n")
 
 """
 ### Beta coalescent ###

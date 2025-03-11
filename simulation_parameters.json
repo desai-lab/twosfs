@@ -26,8 +26,8 @@
     "num_trees": 500,
     "genome_cutoff": 0.2,
     "nruns": 300,
-    "search_r_low": 0.71,
-    "search_r_high": 1.41,
+    "search_r_low": 0.25,
+    "search_r_high": 0.50,
     "rec_rates": [1e-05]
   },
   "positive_sel_coeffs": [

@@ -3,37 +3,71 @@ import numpy as np
 import matplotlib.pyplot as plt
 from twosfs.spectra import Spectra, spectra_from_hdf5, load_spectra
 from twosfs.config import configuration_from_json, parse_parameter_string, make_parameter_string
+from twosfs.analysis import get_power
 import json
 
 config = configuration_from_json("../simulation_parameters.json", root = "../")
 save_path = "figures/"
-reps = 100
+save_path = "/n/home12/efenton/for_windows/newer_2sfs/paper/"
 
-alphas = [1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45, 1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.95, 2.0]
-growth_rates = [0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0]
-end_times = [0.5, 1.0, 2.0]
-mut_rates = [1e-10, 1e-11]
-s_vals = [0, 0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.05, 0.055, 0.06, 0.065, 0.07, 0.075, 0.08]
+params = {"folded": True,
+          "pair_density": config.power_pair_densities[0],
+          "sequence_length": config.power_sequence_lengths[1],
+} 
 
-beta_params = '"alpha":{}'
-exp_params = '"end_time":{},"growth_rate":{}'
-sel_params = '"s":{},"rec_rate":1e-05,"mut_rate":{}'
+power_const = []
+tajd_const = []
+for model in config.iter_models():
+    if model[0] == "const":
+        power_const.append(get_power(model, **params))
+        tajd_const.append(
+            load_spectra(config.format_initial_spectra_file(*model)).tajimas_d()
+        )
 
-demo_file = '../simulations/fitted_demographies/model={}.params={{{}}}.folded=True.txt'
-rec_file = '../simulations/recombination_search/model={}.params={{{}}}.folded=True.pair_density=10000.sequence_length=25.power_rep={}.hdf5'
-sim_file = '../simulations/initial_spectra/model={}.params={{{}}}.rep=all.hdf5'
-ks_file = '../simulations/ks_distances/model={}.params={{{}}}.folded=True.pair_density=10000.sequence_length=25.power_rep={}.hdf5'
+power_beta = []
+tajd_beta = []
+alphas = []
+for model in config.iter_models():
+    if model[0] == "beta":
+        power_beta.append(get_power(model, **params))
+        alphas.append(model[1]["alpha"])
+        tajd_beta.append(
+            load_spectra(config.format_initial_spectra_file(*model)).tajimas_d()
+        )
+
+power_exp = []
+tajd_exp = []
+growth_rates = []
+end_times = []
+for model in config.iter_models():
+    if model[0] == "exp":
+        power_exp.append(get_power(model, **params))
+        growth_rates.append(model[1]["growth_rate"])
+        end_times.append(model[1]["end_time"])
+        tajd_exp.append(
+            load_spectra(config.format_initial_spectra_file(*model)).tajimas_d()
+        )
+power_exp = np.array(power_exp)
+growth_rates = np.array(growth_rates)
+end_times = np.array(end_times)
+
+power_sel = []
+tajd_sel = []
+s_vals = []
+mut_rates = []
+for model in config.iter_forward_models():
+    power_sel.append(get_power(model, **params))
+    s_vals.append(model[1]["s"])
+    mut_rates.append(model[1]["mut_rate"])
+    tajd_sel.append(
+        load_spectra(config.format_initial_spectra_file(*model)).tajimas_d()
+    )
+mut_rates = np.array(mut_rates)
+s_vals = np.array(s_vals)
+power_sel = np.array(power_sel)
 
 
 ########## Power plots ##########
-power_beta = np.load("power_files/beta_power.npy")
-power_sel = np.load("power_files/sel_power.npy")
-power_exp = np.load("power_files/exp_power.npy")
-
-tajd_beta = np.load("power_files/beta_tajd.npy")
-tajd_sel = np.load("power_files/sel_tajd.npy")
-tajd_exp = np.load("power_files/exp_tajd.npy")
-colors = ["tab:blue", "tab:red", "tab:green"]
 
 fig = plt.figure(figsize=(3.3, 3.3))
 ax1 = plt.subplot2grid((4, 3), (0, 0), colspan = 1, rowspan = 2)
@@ -44,20 +78,18 @@ ax4 = plt.subplot2grid((4, 3), (2, 0), colspan = 3, rowspan = 2)
 beta_color = "darkgreen"
 
 ax1.plot(alphas, power_beta, ".", color=beta_color)
+ax1.plot(2.0, power_const[-1], ".", color=beta_color)
 
 colors_sel = ["indianred", "darkred"]
-L = len(s_vals)
-for i, mu in enumerate(mut_rates):
-    label =  r"$\Theta_+ = {}$".format(round(mu*2000*1e5, 3))
-    ax2.plot(s_vals, power_sel[i*L:(i+1)*L], ".", color = colors_sel[i], label = label)
+for i, mu in enumerate(config.positive_mut_rates):
+    ax2.plot(s_vals[mut_rates==mu], power_sel[mut_rates==mu] , ".", color = colors_sel[i])
 ax2.text(0.07, 0.68, r"$\mu=10^{-10}$", transform = ax2.transAxes, fontsize=6, color=colors_sel[0])
 ax2.text(0.47, 0.035, r"$\mu=10^{-11}$", transform = ax2.transAxes, fontsize=6, color=colors_sel[1])
 
 colors_exp = ["navy", "deepskyblue", "aquamarine"]
-L = len(growth_rates)
-for i, t in enumerate(end_times):
+for i, t in enumerate(config.end_times):
     label = r"$t_0 = {}$".format(t)
-    ax3.plot(growth_rates, power_exp[i*L:(i+1)*L], ".", color = colors_exp[i], label = label)
+    ax3.plot(growth_rates[end_times==t], power_exp[end_times==t], ".", color=colors_exp[i], label=label)
 ax3.legend(fontsize=6, frameon=True)
 
 ms = 4
@@ -65,7 +97,7 @@ ax4.plot(tajd_beta[-1], power_beta[-1], ".", color = "k", label = "Constant-size
 ax4.plot(tajd_beta, power_beta, ".", color = beta_color, label = "Beta coalescent")
 ax4.plot(tajd_sel, power_sel, ".", color = "tab:red", label = "Positive seleciton")
 ax4.plot(tajd_exp, power_exp, ".", color = "tab:blue", label = "Exponential growth")
-ax4.plot(tajd_beta[-1], power_beta[-1], ".", color = "k")
+ax4.plot(tajd_const, power_const, ".", color = "k")
 ax4.legend(fontsize=6, title_fontsize=7, frameon=True, loc="center left")
 
 ax1.set_ylabel("Power", fontsize=7)

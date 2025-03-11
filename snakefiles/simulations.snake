@@ -53,7 +53,6 @@ rule ks_distances_all:
         time=5,
         mem=100,
 
-
 rule simulate_initial_spectra:
     output:
         temp(config.initial_spectra_file),
@@ -99,9 +98,10 @@ rule search_recombination_rate:
         demo_file=config.fitted_demography_file,
     output:
         config.recombination_search_file,
+	config.ks_distance_file,
     resources:
         time=150,
-        mem=5000,
+        mem=500,
     run:
         rng = np.random.default_rng(filename2seed(output[0]))
         raw_spectra = load_spectra(input.spectra_file)
@@ -123,19 +123,32 @@ rule search_recombination_rate:
             random_seed=rng,
         )
         distances = (np.arange(int(wildcards.sequence_length) // 3) + 1) * 3
-        search_recombination_rates_save(
+        if wildcards.model == "sel":
+            r_low, r_high = (config.slim_parameters["search_r_low"], config.slim_parameters["search_r_high"])
+        else:
+            r_low, r_high = (config.search_r_low, config.search_r_high)
+        r, p, ks, ks_dist, h_l = search_recombination_rates_save(
             output[0],
             spectra_samp,
             config.k_max,
             distances,
-            wildcards.folded == "True",
+            bool(wildcards.folded),
             sim_kwargs,
-            config.search_r_low,
-            config.search_r_high,
-            config.search_iters
+            r_low,
+            r_high,
+            config.search_iters,
+	    config.power_num_samples,
+	    num_pairs
         )
-
-
+        rec_search_results = {
+            "rec_rate": r,
+            "p_value": p,
+            "ks_distance": ks,
+            "ks_distribution": list(ks_dist),
+            "higher_lower": h_l,
+        }
+        with open(output[1], "w") as f:
+            json.dump(rec_search_results, f)
 
 rule add_runs:
     output:
@@ -154,6 +167,7 @@ rule add_runs:
         total.save(output[0])
 
 
+"""
 rule compute_ks_distances:
     output:
         config.ks_distance_file,
@@ -180,4 +194,5 @@ rule compute_ks_distances:
             num_pairs = num_pairs,
             output_file = output[0],
         )
+"""
 
