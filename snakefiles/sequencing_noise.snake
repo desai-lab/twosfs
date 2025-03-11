@@ -1,0 +1,136 @@
+import numpy as np
+import json
+import gzip
+
+from twosfs.config import configuration_from_json, parse_parameter_string, insert_folder_name
+from twosfs.simulations import filename2seed, simulate_spectra
+from twosfs.spectra import add_spectra, load_spectra, spectra_from_hdf5
+from twosfs.statistics import (
+    search_recombination_rates_save,
+    degenerate_pairs,
+    sample_spectra,
+    sample_ks_statistics,
+    sample_ks_statistics_save,
+    noise_spectra,
+)
+
+import time
+
+# print([f for f in config.recombination_search_files()])
+
+rule search_noised_recombination_all:
+    input:
+        [insert_folder_name(f, "noise_0.02", -1) for f in config.recombination_search_files()],
+    resources:
+        time=5,
+        mem=100,
+
+rule search_forward_noised_recombination_all:
+    input:
+        [insert_folder_name(f, "noise_0.02", -1) for f in config.forward_recombination_search_files()]
+    resources:
+        time=5,
+        mem=100,
+
+
+config = configuration_from_json("simulation_parameters.json")
+
+
+rule add_sequencing_noise:
+    input:
+        config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."),
+    output:
+        insert_folder_name(
+            config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."), "noise_{noise}", -1
+        ),
+    resources:
+        time=10,
+        mem=1000,
+    run:
+        old_spec = load_spectra(input[0])
+        new_spec = noise_spectra(old_spec, float(wildcards.noise))
+        new_spec.save(output[0])
+
+rule fit_demographies_noised:
+    input:
+        insert_folder_name(
+            config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."), "noise_{noise}", -1
+        ),
+    output:
+        insert_folder_name(config.fitted_demography_file, "noise_{noise}", -1),
+    resources:
+        time=10,
+        mem=1000,
+    run:
+        spectra = load_spectra(input[0])
+        fit = spectra.fit_pwc_demography(
+            folded=wildcards.folded == "True",
+            k_max=config.k_max,
+            num_epochs=config.num_epochs,
+            penalty_coef=config.penalty_coef,
+        )
+        with open(output[0], "w") as f:
+            f.write(fit.toJson())
+
+
+rule search_recombination_rate_noised:
+    input:
+        spectra_file=insert_folder_name(
+            config.initial_spectra_file.replace(".rep={rep}.", ".rep=all."), "noise_{noise}", -1
+        ),
+        demo_file=insert_folder_name(config.fitted_demography_file, "noise_{noise}", -1),
+    output:
+        insert_folder_name(config.recombination_search_file, "noise_{noise}", -1),
+        insert_folder_name(config.ks_distance_file, "noise_{noise}", -1),
+    resources:
+        time=150,
+        mem=500,
+    run:
+        rng = np.random.default_rng(filename2seed(output[0]))
+        raw_spectra = load_spectra(input.spectra_file)
+        with open(input.demo_file) as f:
+            model_parameters = json.load(f)
+        num_pairs = np.zeros(len(raw_spectra.windows)-1)
+        num_pairs[0:int(wildcards.sequence_length)] = int(wildcards.pair_density)
+        spectra_samp = sample_spectra(raw_spectra, num_pairs=num_pairs, rng=rng)
+        sim_kwargs = dict(
+            model="pwc",
+            model_parameters=model_parameters,
+            msprime_parameters=(
+                config.msprime_parameters
+                | {
+                    "sequence_length": int(wildcards.sequence_length),
+                    "num_replicates": config.search_num_replicates,
+                }
+            ),
+            random_seed=rng,
+        )
+        distances = (np.arange(int(wildcards.sequence_length) // 3) + 1) * 3
+        if wildcards.model == "sel":
+            r_low, r_high = (config.slim_parameters["search_r_low"], config.slim_parameters["search_r_high"])
+        else:
+            r_low, r_high = (config.search_r_low, config.search_r_high)
+        r, p, ks, ks_dist, h_l = search_recombination_rates_save(
+            output[0],
+            spectra_samp,
+            config.k_max,
+            distances,
+            bool(wildcards.folded),
+            sim_kwargs,
+            r_low,
+            r_high,
+            config.search_iters,
+	    config.power_num_samples,
+	    num_pairs
+        )
+        rec_search_results = {
+            "rec_rate": r,
+            "p_value": p,
+            "ks_distance": ks,
+            "ks_distribution": list(ks_dist),
+            "higher_lower": h_l,
+        }
+        with open(output[1], "w") as f:
+            json.dump(rec_search_results, f)
+
+
