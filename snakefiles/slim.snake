@@ -59,8 +59,8 @@ rule spectra_from_SLiM:
         model="sel",
         rep="\d+",
     resources:
-        mem=3000,
-        time=10,
+        mem=1000,
+        time=5,
     run:
         random.seed(filename2seed(output[0]))
         spectra_params = config.slim_parameters
@@ -93,6 +93,7 @@ rule add_runs_from_SLiM:
         total.save(output[0])
 
 
+"""
 ruleorder: search_recombination_rate_from_slim > search_recombination_rate
 
 rule search_recombination_rate_from_slim:
@@ -139,5 +140,5 @@ rule search_recombination_rate_from_slim:
             config.slim_parameters["search_r_high"] * spectra_samp.scaled_recombination_rate(),
             config.search_iters
         )
-
+"""
 

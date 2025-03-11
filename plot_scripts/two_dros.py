@@ -14,7 +14,7 @@ save_path = "figures/"
 load_path = "../dros_data/Chr{}/"
 rec_file = load_path + "Chr{}_4D_rec_search.folded=True.hdf5"
 initial_spectra = load_path + "Chr{}_4D_initial_spectra.hdf5"
-ks_file = load_path + "Chr{}_4D_ks_distance.folded=True.hdf5"
+ks_file = load_path + "Chr{}_4D_ks_distance.folded=True.json"
 
 # Holds all genomic distances a multiple of three (3, 6, 9,...) to match the distance
 # between fourfold degenerate sites
@@ -37,14 +37,16 @@ for ch in chroms:
     twosfs_data.append(np.sum(spec.normalized_twosfs(folded=True, k_max=20), axis=0)[1:,1:])
     # Load the simulated Kingman 2-SFS, picking out only sites at distances 3, 6, 9, etc.
     with h5py.File(rec_file.format(ch, ch)) as hf:
-        ks_h = hf.get("spectra_high").attrs["ks_distance"]
-        ks_l = hf.get("spectra_low").attrs["ks_distance"]
-        if ks_h < ks_l:
+        p_h = hf.get("spectra_high").attrs["p_value"]
+        p_l = hf.get("spectra_low").attrs["p_value"]
+        if p_h > p_l:
             spec = spectra_from_hdf5(hf.get("spectra_high"))
             twosfs_fit.append(np.sum(spec.normalized_twosfs(folded=True, k_max=20)[threefold,1:,1:], axis=0))
         else:
             spec = spectra_from_hdf5(hf.get("spectra_low"))
             twosfs_fit.append(np.sum(spec.normalized_twosfs(folded=True, k_max=20)[threefold,1:,1:], axis=0))
+
+
 
 # Now plot the violin plots of the KS distances
 ks_sim = []
@@ -53,18 +55,11 @@ p_vals = []
 
 # Get the KS distances for each chromosome and use those to calculate p-values
 for ch in chroms:
-    p_vals.append(
-    with h5py.File(rec_file.format(ch, ch)) as hf:
-        ks_h = hf.get("spectra_high").attrs["ks_distance"]
-        ks_l = hf.get("spectra_low").attrs["ks_distance"]
-    with h5py.File(ks_file.format(ch, ch)) as hf:
-        ks_sim.append(hf.get("ks_null")[:])
-        if ks_h > ks_l:
-            ks_data.append(ks_l)
-            p_vals.append( sum( ks_l < np.array(hf.get("ks_null")[:])) / len(hf.get("ks_null")[:]) )
-        else:
-            ks_data.append(ks_h)
-            p_vals.append( sum( ks_h < np.array(hf.get("ks_null")[:])) / len(hf.get("ks_null")[:]) )
+    with open(ks_file.format(ch, ch)) as f:
+        results = json.load(f)
+    ks_sim.append(results["ks_distribution"])
+    ks_data.append(results["ks_distance"])
+    p_vals.append(results["p_value"])
 
 ######## Actual plotting ######## 
 fig = plt.figure(figsize=(3.0, 4.5))

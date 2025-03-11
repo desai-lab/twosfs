@@ -76,7 +76,7 @@ class Configuration:
             + "folded={folded}."
             + "pair_density={pair_density}."
             + "sequence_length={sequence_length}."
-            + "power_rep={power_rep}.hdf5"
+            + "power_rep={power_rep}.json"
         )
         self.initial_ks_distance_file = (
             self.simulation_directory
@@ -94,6 +94,7 @@ class Configuration:
             + "sequence_length={sequence_length}."
             + "power_rep={power_rep}.hdf5"
         )
+
 
     def iter_models(self) -> Iterator[tuple[str, dict]]:
         """Return an iterator over all model-parameter combinations."""
@@ -309,3 +310,11 @@ def parse_parameter_string(parameter_string: str) -> dict:
         return json.loads(parameter_string)
     except json.JSONDecodeError:
         raise ValueError(f"Parameter string '{parameter_string}' is not valid JSON")
+
+
+def insert_folder_name(file_path, new_folder, position):
+        """Insert a folder to an existing file string"""
+        split_path = file_path.split("/")
+        split_path.insert(position, new_folder)
+        return "/".join(split_path)
+     

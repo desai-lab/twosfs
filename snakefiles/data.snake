@@ -1,29 +1,19 @@
 rule dros_4D_data_all:
     input:
-        ["dros_data/Chr2L/Chr2L_4D_ks_distance.folded=True.hdf5",
-         "dros_data/Chr2R/Chr2R_4D_ks_distance.folded=True.hdf5",
-         "dros_data/Chr3L/Chr3L_4D_ks_distance.folded=True.hdf5",
-         "dros_data/Chr3R/Chr3R_4D_ks_distance.folded=True.hdf5"]
+        ["dros_data/Chr2L/Chr2L_4D_ks_distance.folded=True.json",
+         "dros_data/Chr2R/Chr2R_4D_ks_distance.folded=True.json",
+         "dros_data/Chr3L/Chr3L_4D_ks_distance.folded=True.json",
+         "dros_data/Chr3R/Chr3R_4D_ks_distance.folded=True.json"]
     resources:
         time=5,
         mem=100,
 
-rule cod_NC_chroms_all:
+rule dros_4D_data_all_no_d3:
     input:
-        ["cod_data/NC_0440{}/cod_NC_0440{}_ks_distance.folded=True.hdf5".format(i, i) for i in range(48, 71)]
-        # ["cod_data/NC_0440{}/cod_NC_0440{}_demo.folded=True.txt".format(i, i) for i in range(48, 71)]
-    resources:
-        time=5,
-        mem=100,
-
-rule cod_data_all:
-    input:
-        ["cod_data/NC_044048/cod_NC_044048_ks_distance.folded=True.hdf5",
-         "cod_data/NC_044049/cod_NC_044049_ks_distance.folded=True.hdf5",
-         "cod_data/NC_044050/cod_NC_044050_ks_distance.folded=True.hdf5",
-         "cod_data/NW_021964142/cod_NW_021964142_ks_distance.folded=True.hdf5",
-         "cod_data/NW_021964143/cod_NW_021964143_ks_distance.folded=True.hdf5",
-         "cod_data/NW_021963950/cod_NW_021963950_ks_distance.folded=True.hdf5"]
+        ["dros_data/Chr2L/Chr2L_4D_ks_distance.folded=True.no_d=3.json",
+         "dros_data/Chr2R/Chr2R_4D_ks_distance.folded=True.no_d=3.json",
+         "dros_data/Chr3L/Chr3L_4D_ks_distance.folded=True.no_d=3.json",
+         "dros_data/Chr3R/Chr3R_4D_ks_distance.folded=True.no_d=3.json"]
     resources:
         time=5,
         mem=100,
@@ -58,8 +48,8 @@ rule fit_demography_to_data:
     output:
         demo_file="{prefix}_demo.folded={folded}.txt",
     resources:
-        time=20,
-        mem=10000,
+        time=5,
+        mem=500,
     run:
         with open(input.param_file) as pf:
             params = json.load(pf)
@@ -80,10 +70,11 @@ rule search_recombination_rate_from_data:
         demo_file="{prefix}_demo.folded={folded}.txt",
         param_file="{prefix}_params.json"
     output:
-        search_file="{prefix}_rec_search.folded={folded}.hdf5"
+        search_file="{prefix}_rec_search.folded={folded}.hdf5",
+	ks_file="{prefix}_ks_distance.folded={folded}.json",
     resources:
-        time=300,
-        mem=50000,
+        time=20,
+        mem=500,
     run:
         with open(input.param_file) as pf:
             params = json.load(pf)
@@ -92,6 +83,7 @@ rule search_recombination_rate_from_data:
         with open(input.demo_file) as f:
             model_parameters = json.load(f)
         num_pairs = data_spectra.num_pairs
+	print(num_pairs)
         sim_kwargs = dict(
             model="pwc",
             model_parameters=model_parameters,
@@ -104,7 +96,7 @@ rule search_recombination_rate_from_data:
             random_seed=rng,
         )
         distances = (np.arange(params["max_d"] // 3) + 1) * 3
-        search_recombination_rates_save(
+        r, p, ks, ks_dist, h_l = search_recombination_rates_save(
             output_file = output.search_file,
             spectra = data_spectra,
             k_max = params["k_max"],
@@ -114,37 +106,75 @@ rule search_recombination_rate_from_data:
             r_low = params["search_r_low"],
             r_high = params["search_r_high"],
             num_iters = params["search_iters"],
+            pair_density=num_pairs,
+            n_reps=1000,
         )
+        rec_search_results = {
+            "rec_rate": r,
+            "p_value": p,
+            "ks_distance": ks,
+            "ks_distribution": list(ks_dist),
+            "higher_lower": h_l,
+        }
+        with open(output[1], "w") as f:
+            json.dump(rec_search_results, f)
+
+ruleorder: search_recombination_rate_from_data_no_short > search_recombination_rate_from_data
 
 
-rule compute_ks_distances_from_data:
+rule search_recombination_rate_from_data_no_short:
     input:
-        rec_search_file="{prefix}_rec_search.folded={folded}.hdf5",
-        spec_file="{prefix}_initial_spectra.hdf5",
-        param_file="{prefix}_params.json",
+        spectra_file="{prefix}_initial_spectra.hdf5",
+        demo_file="{prefix}_demo.folded={folded}.txt",
+        param_file="{prefix}_params.json"
     output:
-        ks_distance_file="{prefix}_ks_distance.folded={folded}.hdf5",
+        search_file="{prefix}_rec_search.folded={folded}.no_d=3.hdf5",
+	ks_file="{prefix}_ks_distance.folded={folded}.no_d=3.json",
     resources:
-        time=10,
-        mem=1000,
+        time=20,
+        mem=500,
     run:
         with open(input.param_file) as pf:
             params = json.load(pf)
-        spec_orig = load_spectra(input.spec_file)
-        with h5py.File(input.rec_search_file) as hf:
-            spec_comp = spectra_from_hdf5(hf.get("spectra_target"))
-            if dict(hf.get("spectra_high").attrs)["ks_distance"] < dict(hf.get("spectra_low").attrs)["ks_distance"]:
-                spec_null = spectra_from_hdf5(hf.get("spectra_high"))
-            else:
-                spec_null = spectra_from_hdf5(hf.get("spectra_low"))
-        distances = (np.arange(params["max_d"] // 3) + 1) * 3
-        sample_ks_statistics_save(
-            spectra_null = spec_null,
+        rng = np.random.default_rng(filename2seed(output.search_file))
+        data_spectra = load_spectra(input.spectra_file)
+        with open(input.demo_file) as f:
+            model_parameters = json.load(f)
+        num_pairs = data_spectra.num_pairs
+	print(num_pairs)
+        sim_kwargs = dict(
+            model="pwc",
+            model_parameters=model_parameters,
+            msprime_parameters={
+                "samples": params["num_samples"],
+                "ploidy": params["ploidy"],
+                "sequence_length": params["max_d"],
+                "num_replicates": params["search_num_replicates"]
+            },
+            random_seed=rng,
+        )
+        distances = (np.arange(1, params["max_d"] // 3) + 1) * 3
+        r, p, ks, ks_dist, h_l = search_recombination_rates_save(
+            output_file = output.search_file,
+            spectra = data_spectra,
             k_max = params["k_max"],
             distances = distances,
-            folded = wildcards.folded,
-            n_reps = int(1e4),
-            num_pairs = spec_orig.num_pairs,
-            output_file = output.ks_distance_file,
+            folded = bool(wildcards.folded),
+            sim_kwargs = sim_kwargs,
+            r_low = params["search_r_low"],
+            r_high = params["search_r_high"],
+            num_iters = params["search_iters"],
+            pair_density=num_pairs,
+            n_reps=1000,
         )
+        rec_search_results = {
+            "rec_rate": r,
+            "p_value": p,
+            "ks_distance": ks,
+            "ks_distribution": list(ks_dist),
+            "higher_lower": h_l,
+        }
+        with open(output[1], "w") as f:
+            json.dump(rec_search_results, f)
+
 

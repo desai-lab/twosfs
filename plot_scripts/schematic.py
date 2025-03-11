@@ -12,13 +12,14 @@ from matplotlib import patches, lines
 
 config = configuration_from_json("../simulation_parameters.json")
 save_path = "figures/"
+save_path = "/n/home12/efenton/for_windows/newer_2sfs/paper/"
 
 beta_params = '"alpha":{}'
 
 demo_file = '../simulations/fitted_demographies/model={}.params={{{}}}.folded=True.txt'
 rec_file = '../simulations/recombination_search/model={}.params={{{}}}.folded=True.pair_density=10000.sequence_length=25.power_rep={}.hdf5'
 sim_file = '../simulations/initial_spectra/model={}.params={{{}}}.rep=all.hdf5'
-ks_file = '../simulations/ks_distances/model={}.params={{{}}}.folded=True.pair_density=10000.sequence_length=25.power_rep={}.hdf5'
+ks_file = '../simulations/ks_distances/model={}.params={{{}}}.folded=True.pair_density=10000.sequence_length=25.power_rep={}.json'
 
 def demo_to_plot(sizes, times):
     t = [0]
@@ -61,14 +62,15 @@ with open(demo_file.format(*params)) as df:
 
 params = ("beta", beta_params.format(alpha), 0)
 with h5py.File(rec_file.format(*params)) as hf:
-    ks_d = dict(hf.get("spectra_high").attrs)["ks_distance"]
     spec_growth = spectra_from_hdf5(hf.get("spectra_high"))
     two_growth = spec_growth.normalized_twosfs(folded=True, k_max=20)[:,1:,1:]
 spec_beta = load_spectra(sim_file.format(*params[:-1]))
 two_beta = spec_beta.normalized_twosfs(folded=True, k_max=20)[:,1:,1:]
 
-with h5py.File(ks_file.format(*params)) as hf:
-    ks = np.array(hf.get("ks_null"))
+with open(ks_file.format(*params)) as f:
+    foo = json.load(f)
+    ks_d = np.array(foo["ks_distance"])
+    ks = np.array(foo["ks_distribution"])
 
 pd = np.full(25, 100000)
 spec_resamp = sample_spectra(spec_growth, 1, pd, False)
@@ -228,7 +230,10 @@ axs[4].arrow(6.5, y[6]-0.10, 0, x[6] - y[6] + 0.12, color=c0, length_includes_he
 axs[4].text(0.37, 0.16, "KS distance", fontsize=6, transform = axs[4].transAxes, color=c0)
 axs[4].legend(fontsize=6)
 axs[4].set_xticks([0, 10, 20])
+axs[4].set_yticks([0, 0.5, 1.0])
 axs[4].set_title("Measure KS distances", fontsize=7)
+axs[4].set_xlabel("Site frequency", fontsize=7)
+axs[4].set_ylabel("Cumulative distribution", fontsize=7)
 
 # Choose rec. rate that minimizes KS distance
 axs[5].plot([0.14, 0.15, 0.16, 0.17, 0.18], [1215, 864, 597, 796, 1052], ".", color="k")
@@ -252,12 +257,12 @@ axs[6].set_title("Resample the 2-SFS", fontsize=7)
 # Generate null KS dist. and p-value
 p = round(sum((ks > ks_d) / len(ks)), 3)
 axs[7].hist(ks, 100, color=c1, label="Null KS distribution")
-axs[7].plot([ks_d, ks_d], [0, 290], "--", color=c2, label="Data KS value")
+axs[7].plot([ks_d, ks_d], [0, 35], "--", color=c2, label="Data KS value")
 axs[7].legend(fontsize=6)
 axs[7].set_xlabel("KS distance", fontsize=7)
 axs[7].set_ylabel("Counts", fontsize=7)
-axs[7].set_ylim(0, 470)
-axs[7].text(0.8, 0.68, f"p={p}", fontsize=6, color=c2, transform=axs[7].transAxes, ha="center", va="center")
+axs[7].set_ylim(0, 60)
+axs[7].text(0.8, 0.58, f"p={p}", fontsize=6, color=c2, transform=axs[7].transAxes, ha="center", va="center")
 axs[7].set_title("Generate null KS\n" + r"dist. and $p$-value", fontsize=7)
 
 # Format axes
@@ -300,7 +305,7 @@ draw_arrow(axs[0], saxs[1], "lr", 0.01, 0.037)
 draw_arrow(saxs[0], axs[2], "lr", 0.01, 0.035)
 draw_arrow(axs[2], axs[3], "lr", 0.01, 0.035)
 draw_arrow(axs[3], axs[4], "ud", 0.06, 0.05)
-draw_arrow(axs[4], axs[5], "rl")
+draw_arrow(axs[4], axs[5], "rl", 0.04)
 draw_arrow(axs[5], axs[6], "rl", 0.04)
 draw_arrow(axs[6], axs[7], "rl")
 
