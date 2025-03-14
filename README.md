@@ -29,8 +29,10 @@ Use git lfs for simulations.tgz
           resources:
               time=5,
               mem=100,
+   Note you can also use the unfolded SFS and 2-SFS by changing the above to folded=False
 4. Run snakemake, e.g.: snakemake my_data. For deployment on a Slurm cluster, use:
    snakemake my_data --cluster 'sbatch -c 1 -t {resources.time} --mem={resources.mem}' -j 10
    The final argument can be increased to allow more jobs to run at once, see snakemake
    documentation for more details.
+5. KS distances and p-values will be found at path/to/data/ks_distance.folded=True.json
 
