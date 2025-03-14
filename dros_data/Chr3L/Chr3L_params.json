@@ -1,0 +1,13 @@
+{
+  "num_samples": 161,
+  "ploidy": 1,
+  "max_d": 20,
+  "k_max": 25,
+  "recombination_rate": 0.067,
+  "num_epochs": 5,
+  "penalty_coef": 1e-5,
+  "search_num_replicates": 10000,
+  "search_r_low": 0.048,
+  "search_r_high": 0.095,
+  "search_iters": 5
+}
